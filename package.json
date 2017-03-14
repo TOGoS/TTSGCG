@@ -1,0 +1,17 @@
+{
+  "name": "ts-template-project",
+  "description": "Template for TypeScript projects so I can start them quicker",
+  "version": "0.0.1",
+  "license": "MIT",
+  "main": "target/cjs",
+  "scripts": {
+    "test": "make run-unit-tests"
+  },
+  "dependencies": {
+    "tshash": "^1.7.0"
+  },
+  "devDependencies": {
+    "typescript": "^2.1.1",
+    "@types/node": "^7.0.5"
+  }
+}
