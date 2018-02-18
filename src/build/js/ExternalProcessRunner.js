@@ -107,22 +107,23 @@ var ExternalProcessRunner = /** @class */ (function () {
         var envPath = process.env.Path;
         var envPaths = (envPath != '' && envPath != undefined) ? envPath.split(';') : [];
         var leftToCheck = envPaths.length;
-        var findNpmCliJsPromise = Promise.resolve();
-        leftToCheck == 0 ? Promise.resolve() : new Promise(function (resolve, reject) {
+        var potentialNpmCommandsPromise = leftToCheck == 0 ? Promise.resolve(alternatives) : new Promise(function (resolve, reject) {
             var _loop_1 = function (p) {
                 var npmCliJsPath = envPaths[p] + '/node_modules/npm/bin/npm-cli.js';
                 fs.stat(npmCliJsPath, function (err, stats) {
                     if (!err)
                         alternatives.push(['node', npmCliJsPath]);
                     if (--leftToCheck == 0)
-                        resolve();
+                        resolve(alternatives);
                 });
             };
             for (var p in envPaths) {
                 _loop_1(p);
             }
         });
-        return this.npmCommandPromise = findNpmCliJsPromise.then(function () { return _this.findWorkingProgram(alternatives, ['-v'], 0, 'npm'); });
+        return this.npmCommandPromise = potentialNpmCommandsPromise.then(function (_alternatives) {
+            return _this.findWorkingProgram(alternatives, ['-v'], 0, 'npm');
+        });
     };
     ExternalProcessRunner.prototype.figureNodeCommand = function () {
         return Promise.resolve(['node']);
