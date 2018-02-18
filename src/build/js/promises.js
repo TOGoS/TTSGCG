@@ -1,5 +1,5 @@
-///<reference types="node" />
 "use strict";
+///<reference types="node" />
 Object.defineProperty(exports, "__esModule", { value: true });
 var State;
 (function (State) {

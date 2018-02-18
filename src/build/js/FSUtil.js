@@ -1,8 +1,13 @@
+"use strict";
+// This file is maintained as part of NodeBuildUtil: https://github.com/TOGoS/NodeBuildUtil
+// If you're making fixes and want to make sure they get merged upstream,
+// PR to that project.
+// Otherwise, feel free to remove this comment.
+Object.defineProperty(exports, "__esModule", { value: true });
 ///<reference types="node" />
 ///<reference path="Promise.d.ts"/>
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
 var fs = require("fs");
+var promises_1 = require("./promises");
 function stat(file) {
     return new Promise(function (resolve, reject) {
         fs.stat(file, function (err, stats) {
@@ -36,9 +41,28 @@ function writeFile(file, data) {
     });
 }
 exports.writeFile = writeFile;
+function readFileToString(file, options) {
+    if (options === void 0) { options = {}; }
+    var trueOptions = {
+        encoding: options.encoding || "utf8",
+        flag: options.flag
+    };
+    return readFile(file, trueOptions).then(function (content) {
+        // Shouldn't happen, since we're not allowing encoding to be specified, but just in case we screw up:
+        if (typeof content != 'string')
+            return Promise.reject(new Error("File not read as a string!"));
+        // Supposedly Buffer acts as a Uint8Array, so we can just return it.
+        return Promise.resolve(content);
+    });
+}
+exports.readFileToString = readFileToString;
 function readFileToUint8Array(file, options) {
     if (options === void 0) { options = {}; }
+    if (options.encoding) {
+        return Promise.reject(new Error("Why you passing 'encoding' to readFileToUint8Array"));
+    }
     return readFile(file, options).then(function (content) {
+        // Shouldn't happen, since we're not allowing encoding to be specified, but just in case we screw up:
         if (typeof content == 'string')
             return Promise.reject(new Error("File read as a string!"));
         // Supposedly Buffer acts as a Uint8Array, so we can just return it.
@@ -178,19 +202,18 @@ exports.mkParentDirs = mkParentDirs;
 function cpR(src, dest) {
     return stat(src).then(function (srcStat) {
         if (srcStat.isDirectory()) {
-            var cpPromise_1 = mkdir(dest);
-            return readDir(src).then(function (files) {
+            var mkdirPromise_1 = mkdir(dest);
+            return readDir(src).then(function (files) { return mkdirPromise_1.then(function () {
+                var subPromises = [];
                 for (var f in files) {
-                    cpPromise_1 = cpPromise_1.then(function () {
-                        cpR(src + "/" + files[f], dest + "/" + files[f]);
-                    });
+                    subPromises.push(cpR(src + "/" + files[f], dest + "/" + files[f]));
                 }
                 ;
-                return cpPromise_1;
-            });
+                return Promise.all(subPromises).then(promises_1.RESOLVED_VOID_PROMISE_CALLBACK);
+            }); });
         }
         else {
-            return cp(src, dest);
+            return cp(src, dest).then(promises_1.RESOLVED_VOID_PROMISE_CALLBACK);
         }
     });
 }

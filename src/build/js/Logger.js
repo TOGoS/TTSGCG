@@ -5,7 +5,7 @@ exports.VERBOSITY_ERRORS = 1;
 exports.VERBOSITY_WARNINGS = 2;
 exports.VERBOSITY_INFO = 3;
 exports.VERBOSITY_DEBUG = 4;
-var LevelFilteringLogger = (function () {
+var LevelFilteringLogger = /** @class */ (function () {
     function LevelFilteringLogger(backingLogger, verbosity) {
         this.backingLogger = backingLogger;
         this.verbosity = verbosity;

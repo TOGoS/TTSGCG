@@ -1,9 +1,13 @@
 "use strict";
+// This file is maintained as part of NodeBuildUtil: https://github.com/TOGoS/NodeBuildUtil
+// If you're making fixes and want to make sure they get merged upstream,
+// PR to that project.
+// Otherwise, feel free to remove this comment.
 Object.defineProperty(exports, "__esModule", { value: true });
 var Logger_1 = require("./Logger");
 var child_process = require("child_process");
 var fs = require("fs");
-var ExternalProcessRunner = (function () {
+var ExternalProcessRunner = /** @class */ (function () {
     function ExternalProcessRunner() {
         this.logger = Logger_1.NULL_LOGGER;
         this.shellCommandPromise = undefined;
@@ -85,7 +89,7 @@ var ExternalProcessRunner = (function () {
             ['cmd.exe', '/c'],
             ['sh', '-c'],
         ];
-        return this.shellCommandPromise = this.findWorkingProgram(alternatives, ['exit 0']);
+        return this.shellCommandPromise = this.findWorkingProgram(alternatives, ['exit 0'], 0, 'shell');
     };
     ExternalProcessRunner.prototype.figureNpmCommand = function () {
         var _this = this;
@@ -118,7 +122,7 @@ var ExternalProcessRunner = (function () {
                 _loop_1(p);
             }
         });
-        return this.npmCommandPromise = findNpmCliJsPromise.then(function () { return _this.findWorkingProgram(alternatives, ['-v']); });
+        return this.npmCommandPromise = findNpmCliJsPromise.then(function () { return _this.findWorkingProgram(alternatives, ['-v'], 0, 'npm'); });
     };
     ExternalProcessRunner.prototype.figureNodeCommand = function () {
         return Promise.resolve(['node']);

@@ -1,4 +1,8 @@
 "use strict";
+// This file is maintained as part of NodeBuildUtil: https://github.com/TOGoS/NodeBuildUtil
+// If you're making fixes and want to make sure they get merged upstream,
+// PR to that project.
+// Otherwise, feel free to remove this comment.
 Object.defineProperty(exports, "__esModule", { value: true });
 var fs = require("fs");
 var fsutil = require("./FSUtil");
@@ -32,7 +36,7 @@ function toSet(arr, into) {
         into[arr[x]] = arr[x];
     return into;
 }
-var Builder = (function () {
+var Builder = /** @class */ (function () {
     function Builder(targets) {
         if (targets === void 0) { targets = {}; }
         this.targets = targets;
@@ -117,7 +121,7 @@ var Builder = (function () {
         var prereqAndMtimePromz = [];
         var _loop_1 = function (prereq) {
             prereqAndMtimePromz.push(this_1.build(prereq, prereqStackTrace).then(function () {
-                return mtimeR(prereq).then(function (mt) { return [prereq, mt]; });
+                return mtimeR(prereq).then(function (mtime) { return ({ name: prereq, mtime: mtime }); });
             }));
         };
         var this_1 = this;
@@ -135,8 +139,8 @@ var Builder = (function () {
                     needRebuild = false;
                     for (var m in prereqsAndMtimes) {
                         var prereqAndMtime = prereqsAndMtimes[m];
-                        var prereqName = prereqAndMtime[0];
-                        var prereqMtime = prereqAndMtime[1];
+                        var prereqName = prereqAndMtime.name;
+                        var prereqMtime = prereqAndMtime.mtime;
                         if (prereqMtime == undefined || targetMtime == undefined || prereqMtime > targetMtime) {
                             _this.logger.log("OUT-OF-DATE: " + prereqName + " is newer than " + targetName + "; need to rebuild (" + prereqMtime + " > " + targetMtime + ")");
                             needRebuild = true;
