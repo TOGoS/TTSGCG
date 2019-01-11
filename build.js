@@ -58,7 +58,6 @@ function concatJsFiles( files, outputFile ) {
 }
 
 const amdComponentFiles = [
-	"node_modules/tshash/target/tshash.amd.es5.js",
 	"target/amd.es5.js"
 ];
 
@@ -76,10 +75,6 @@ builder.targets = {
 		prereqs: ["package.json"],
 		invoke: (ctx) => ctx.builder.npm(["install"]),
 		isDirectory: true,
-	},
-	"node_modules/tshash/target/tshash.amd.es5.js": {
-		prereqs: ["node_modules"],
-		invoke: (ctx) => ctx.builder.doCmd("make target/tshash.amd.es5.js", {cwd:'node_modules/tshash'})
 	},
 	"src": {
 		isDirectory: true,

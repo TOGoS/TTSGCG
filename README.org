@@ -1,0 +1,3 @@
+#+TITLE: TOGoS's TypeScript G-Code Generator
+
+Generate simple G-code for milling stuff, in JavaScript.
