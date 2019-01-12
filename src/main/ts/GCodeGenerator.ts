@@ -20,6 +20,7 @@ interface CurvedPathSegment {
 type PathSegment = StraightPathSegment|CurvedPathSegment;
 
 interface Path {
+	typeName: "Path";
 	vertexes: Vector3D[];
 	segments: PathSegment[];
 }
@@ -38,6 +39,7 @@ class PathBuilder
 	protected _currentDirection:Vector3D = {x:1, y:0, z:0};
 	constructor(startPoint:Vector3D) {
 		this.path = {
+			typeName: "Path",
 			vertexes: [startPoint],
 			segments: []
 		};
@@ -134,29 +136,160 @@ interface BoxOptions {
 	width:number;
 	height:number;
 	cornerOptions:CornerOptions;
+	centered:boolean;
 }
 
 function boxPath(boxOptions:BoxOptions) {
 	const w = boxOptions.width;
 	const h = boxOptions.height;
+	let x0 = boxOptions.centered ? 0-w/2 : 0;
+	let y0 = boxOptions.centered ? 0-h/2 : 0;
 	const c = boxOptions.cornerOptions.cornerRadius;
 	const cs = boxOptions.cornerOptions.cornerStyleName;
-	let pb = new PathBuilder({x:c, y:0, z:0});
-	pb.lineToCornerStart({x:w,y:0,z:0}, quarterTurn, c);
+	let pb = new PathBuilder({x:x0+c, y:y0+0, z:0});
+	pb.lineToCornerStart({x:x0+w,y:y0+0,z:0}, quarterTurn, c);
 	pb.turn(quarterTurn, c, cs);
-	pb.lineToCornerStart({x:w,y:h,z:0}, quarterTurn, c);
+	pb.lineToCornerStart({x:x0+w,y:y0+h,z:0}, quarterTurn, c);
 	pb.turn(quarterTurn, c, cs);
-	pb.lineToCornerStart({x:0,y:h,z:0}, quarterTurn, c);
+	pb.lineToCornerStart({x:x0+0,y:y0+h,z:0}, quarterTurn, c);
 	pb.turn(quarterTurn, c, cs);
-	pb.lineToCornerStart({x:0,y:0,z:0}, quarterTurn, c);
+	pb.lineToCornerStart({x:x0+0,y:y0+0,z:0}, quarterTurn, c);
 	pb.turn(quarterTurn, c, cs);
 	return pb.closeLoop().path;
 }
 
-function centeredCirclePath(radius:number):Path {
+function circlePath(radius:number):Path {
 	let pb = new PathBuilder({x:0, y:-radius, z:0});
 	return pb.turn(fullTurnAngle, radius).closeLoop().path;
 }
+
+//// Shape2D
+
+interface TransformShape {
+	typeName:"TransformShape";
+	transformation:TransformationMatrix3D;
+	subShape:Shape;
+}
+interface MultiShape {
+	typeName:"MultiShape";
+	subShapes:Shape[];
+}
+type Shape = TransformShape|MultiShape|Path;
+
+//// Text
+
+interface TextBoundingBox {
+	leftX:number;
+	rightX:number;
+	topX:number;
+	bottomX:number;
+}
+
+interface TextCharacter {
+	box: TextBoundingBox;
+	shape: Shape;
+}
+
+interface Charset {
+	characters: {[char:string]: TextCharacter};
+}
+
+const togBlockLetters:Charset = (() => {
+	const aa =  0;
+	const ab =  1;
+	const ac =  2;
+	const ad =  3;
+	const ba =  4;
+	const bb =  5;
+	const bc =  6;
+	const bd =  7;
+	const ca =  8;
+	const cb =  9;
+	const cc = 10;
+	const cd = 11;
+	const da = 12;
+	const db = 13;
+	const dc = 14;
+	const dd = 15;
+	const blockLetterBoundingBox:TextBoundingBox = {
+		leftX: -0.5, rightX: 0.5,
+		topX: 0.5, bottomX: -0.5,
+	}
+	const blockVertexes:Vector3D[] = [];
+	const outlinePath:Path = boxPath({
+		width: 1, height: 1, cornerOptions: {
+			cornerRadius: 1/8,
+			cornerStyleName: "Round"
+		}, centered: true
+	});
+	for( let y=0; y<=3; ++y ) {
+		for( let x=0; x<=3; ++x ) {
+			blockVertexes.push({x: x / 3 - 0.5, y: 0.5 - y / 3, z:0});
+		}
+	}
+	function mkblok(...vertexLists:number[][]):TextCharacter {
+		let paths:Path[] = [outlinePath];
+		for( let vl in vertexLists ) {
+			let vertexList = vertexLists[vl];
+			let segments:PathSegment[] = [];
+			for( let i=0; i<vertexList.length-1; ++i ) {
+				segments.push({
+					typeName: "StraightPathSegment",
+					startVertexIndex: vertexList[i],
+					endVertexIndex: vertexList[i+1]
+				});
+			}
+			paths.push({
+				typeName:"Path",
+				vertexes:blockVertexes,
+				segments
+			});
+		}
+		return {
+			box: blockLetterBoundingBox,
+			shape: {
+				typeName: "MultiShape",
+				subShapes: paths
+			}
+		}
+	}
+	return {
+		characters: {
+			"W": mkblok([ab,cb],[ac,cc]),
+			"S": mkblok([bb,bd],[ca,cc]),
+		}
+	}
+})();
+
+function textToShape(text:string, charset:Charset):Shape {
+	let x = 0;
+	let chars:TextCharacter[] = [];
+	for( let i=0; i<text.length; ++i ) {
+		let charKey = text.charAt(i);
+		let char = charset.characters[charKey];
+		if( char != undefined ) {
+			chars.push(char);
+		}
+	}
+	let right = 0;
+	let subShapes:Shape[] = [];
+	for( let c in chars ) {
+		let char = chars[c];
+		let charWidth = char.box.rightX - char.box.leftX;
+		subShapes.push({
+			typeName: "TransformShape",
+			transformation: vectormath.translationToTransform({x: right - char.box.leftX, y: 0, z:0}),
+			subShape: char.shape
+		});
+		right += charWidth;
+	}
+	return {
+		typeName: "MultiShape",
+		subShapes
+	}
+}
+
+////
 
 interface DistanceUnit {
 	name : string;
@@ -179,7 +312,7 @@ const MM : DistanceUnit = {
 interface PathCarveTask
 {
 	typeName:"PathCarveTask";
-	paths:Path[];
+	shapes:Shape[];
 	depth:number;
 }
 
@@ -348,11 +481,12 @@ class GCodeGenerator {
 		}
 	}
 	carvePath(path:Path, depth:number):void {
-		if(path.vertexes.length == 0) return;
+		if(path.segments.length == 0) return;
 		if(depth <= 0) return;
 
 		let targetZ = 0 - depth;
-		let startPoint = path.vertexes[0];
+		let seg0 = path.segments[0];
+		let startPoint = path.vertexes[seg0.startVertexIndex];
 		this.zoomTo(startPoint);
 		let currentZ = 0;
 		let direction = 1;
@@ -385,9 +519,25 @@ class GCodeGenerator {
 		}
 		this.zoomToZoomHeight();
 	}
+	carveShape(shape:Shape, depth:number) {
+		switch(shape.typeName) {
+		case "MultiShape":
+			for( let s in shape.subShapes ) {
+				this.carveShape(shape.subShapes[s], depth);
+			}
+			return;
+		case "TransformShape":
+			return this.withTransform(shape.transformation, () => {
+				this.carveShape(shape.subShape, depth);
+			});
+		case "Path":
+			return this.carvePath(shape, depth);
+
+		}
+	}
 	doPathCarveTask(task:PathCarveTask) {
-		for( let p in task.paths ) {
-			this.carvePath(task.paths[p], task.depth);
+		for( let p in task.shapes ) {
+			this.carveShape(task.shapes[p], task.depth);
 		}
 	}
 	bangHole(depth:number, stepDown:number, stepUp:number) {
@@ -411,7 +561,7 @@ class GCodeGenerator {
 			}
 		} else {
 			this.emitComment(task.diameter + this.unit.name + " hole will be circles");
-			const path = centeredCirclePath(circleRadius);
+			const path = circlePath(circleRadius);
 			this.forEachOffset(task.positions, () => {
 				this.carvePath(path, task.depth);
 			})
@@ -439,6 +589,7 @@ interface TOGPanelOptions {
 	cornerStyle: CornerStyleName;
 	outlineDepth: number;
 	holeDepth: number;
+	label: string|undefined;
 }
 
 function makeTogPanelTasks(options:TOGPanelOptions):Task[] {
@@ -450,15 +601,23 @@ function makeTogPanelTasks(options:TOGPanelOptions):Task[] {
 	for( let x=0.25; x<options.width; x += 0.5 ) {
 		holePositions.push({x, y:3.25, z:0});
 	}
+	let label = options.label || "";
+	let labelShape = textToShape(label, togBlockLetters);
 	return [
 		{
 			typeName: "PathCarveTask",
 			depth: 1/16,
-			paths: [
+			shapes: [
 				boxPath({
 					width: options.width, height: 3.5,
-					cornerOptions: { cornerRadius: 0.25, cornerStyleName: "Round" }
-				})
+					cornerOptions: { cornerRadius: 0.25, cornerStyleName: "Round" },
+					centered: false
+				}),
+				{
+					typeName: "TransformShape",
+					transformation: vectormath.translationToTransform({x:0.5, y:2.5, z:0}),
+					subShape: labelShape
+				}
 			]
 		},
 		{
@@ -480,7 +639,8 @@ if( require.main == module ) {
 			cornerStyle: "Round",
 			holeDepth: 1/8,
 			outlineDepth: 1/16,
-			width: 2
+			width: 2,
+			label: "WSITEM-0000",
 		})
 	});
 	gcg.emitShutdownCode();
