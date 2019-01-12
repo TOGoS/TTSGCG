@@ -14,6 +14,14 @@ export function createIdentityTransform():TransformationMatrix3D {
 	};
 }
 
+export function translationToTransform(v:Vector3D):TransformationMatrix3D {
+	return {
+		xx:1, xy:0, xz: 0, x1:v.x,
+		yx:0, yy:1, yz: 0, y1:v.y,
+		zx:0, zy:0, zz: 1, z1:v.z,
+	}
+}
+
 export function multiplyTransform(m1:TransformationMatrix3D, m2:TransformationMatrix3D):TransformationMatrix3D {
 	const xx = m1.xx * m2.xx + m1.xy * m2.yx + m1.xz * m2.zx + 0;
 	const xy = m1.xx * m2.xy + m1.xy * m2.yy + m1.xz * m2.zy + 0;
@@ -60,4 +68,40 @@ export function axisAngleToTransform( axis:Vector3D, angle:number, dest:Transfor
 
 export function vectorsAreEqual( v1:Vector3D, v2:Vector3D ):boolean {
 	return v1.x == v2.x && v1.y == v2.y && v1.z == v2.z;
+}
+
+export function vectorLength( v:Vector3D ):number {
+	return Math.sqrt(v.x*v.x + v.y*v.y + v.z*v.z);
+}
+
+export function scaleVector( v:Vector3D, scale:number ):Vector3D {
+	return {
+		x: v.x * scale,
+		y: v.y * scale,
+		z: v.z * scale,
+	};
+}
+
+export function normalizeVector( v:Vector3D ):Vector3D {
+	const len = vectorLength(v);
+	if( len == 0 || len == 1 ) return v;
+	return scaleVector(v, 1 / len);
+}
+
+export function subtractVectors( minuend:Vector3D, subtrahend:Vector3D ):Vector3D {
+	return {
+		x: minuend.x - subtrahend.x,
+		y: minuend.y - subtrahend.y,
+		z: minuend.z - subtrahend.z,
+	};
+}
+
+export function addVectors( ...vectors:Vector3D[] ):Vector3D {
+	let x = 0, y = 0, z = 0;
+	for( let v in vectors ) {
+		x += vectors[v].x;
+		y += vectors[v].y;
+		z += vectors[v].z;
+	}
+	return {x,y,z};
 }

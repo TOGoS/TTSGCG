@@ -6,6 +6,7 @@
 		"noImplicitThis": true,
 		"strictNullChecks": true,
 		"rootDir": ".",
+		"target": "es5",
 		"moduleResolution": "node"
 	},
 	"exclude": [

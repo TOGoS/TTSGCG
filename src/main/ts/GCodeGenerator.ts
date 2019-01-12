@@ -7,16 +7,15 @@ import { TransformationMatrix3D, Vector3D } from './vectormath';
 // Path = { vertexes: Vector3D[], segments: PathSegment[] }
 
 interface StraightPathSegment {
+	typeName:"StraightPathSegment";
 	startVertexIndex:number;
 	endVertexIndex:number;
-	isCurve:false;
 }
 interface CurvedPathSegment {
+	typeName:"ClockwisePathSegment"|"CounterClockwisePathSegment";
 	startVertexIndex:number;
 	endVertexIndex:number;
-	isCurve:true;
-	direction:"clockwise"|"counterclockwise";
-	curveCenterVertex:number|undefined;
+	axisVertexIndex:number|undefined;
 }
 type PathSegment = StraightPathSegment|CurvedPathSegment;
 
@@ -25,42 +24,138 @@ interface Path {
 	segments: PathSegment[];
 }
 
+function vectorToString(v:Vector3D, digits=4):string {
+	return "<"+v.x.toFixed(digits)+","+v.y.toFixed(digits)+","+v.z.toFixed(digits)+">";
+}
+
+type CornerStyleName = "Chamfer"|"Round";
+
 class PathBuilder
 {
 	public path:Path;
-	protected atVertexIndex:number|undefined;
-	protected direction:Vector3D;
-	constructor() {
+	protected currentVertexIndex:number=0;
+	protected vertexIndexes:{[v:string]:number} = {};
+	protected _currentDirection:Vector3D = {x:1, y:0, z:0};
+	constructor(startPoint:Vector3D) {
 		this.path = {
-			vertexes: [],
+			vertexes: [startPoint],
 			segments: []
 		};
 	}
 	protected findVertex(pos:Vector3D):number {
+		const key = pos.x+","+pos.y+","+pos.z;
+		let idx = this.vertexIndexes[key];
+		if( idx != undefined ) return idx;
 		this.path.vertexes.push(pos);
-		return this.path.vertexes.length-1;
+		idx = this.path.vertexes.length-1;
+		this.vertexIndexes[key] = idx;
+		return idx;
 	}
 
-	startAt(vec:Vector3D):PathBuilder {
-		if(this.atVertexIndex != undefined) throw new Error("Path already started");
-		this.path.vertexes.push(vec);
-		this.atVertexIndex = 0;
-		return this;
-	}
 	lineTo(vec:Vector3D):PathBuilder {
-		if(this.atVertexIndex == undefined) throw new Error("Path not yet started");
+		if(vectormath.vectorsAreEqual(vec, this.currentPosition)) return this;
+
 		let endVertexIndex = this.findVertex(vec);
 		this.path.segments.push({
-			startVertexIndex: this.atVertexIndex,
+			typeName: "StraightPathSegment",
+			startVertexIndex: this.currentVertexIndex,
 			endVertexIndex,
-			isCurve: false
 		})
-		this.atVertexIndex = endVertexIndex;
+		this.currentDirection = vectormath.subtractVectors(this.path.vertexes[endVertexIndex], this.path.vertexes[this.currentVertexIndex]);
+		this.currentVertexIndex = endVertexIndex;
 		return this;
 	}
-	curveTo(vec:Vector3D):PathBuilder {
+	set currentDirection(dir:Vector3D) {
+		this._currentDirection = vectormath.normalizeVector(dir);
+	}
+	get currentPosition():Vector3D {
+		if(this.currentVertexIndex == undefined) throw new Error("Path not yet started");
+		return this.path.vertexes[this.currentVertexIndex];
+	}
+	turn(angle:number, radius:number=0, shape:CornerStyleName="Round"):PathBuilder {
+		if(this.currentVertexIndex == undefined) throw new Error("Path not yet started");
+		if( radius != 0 ) {
+			const currentPosition = this.path.vertexes[this.currentVertexIndex];
+			const forward = vectormath.scaleVector(this._currentDirection, radius);
+			const toAxisFromStart = vectormath.transformVector(vectormath.xyzAxisAngleToTransform(0,0,angle > 0 ? 1 : -1,Math.PI/2), forward);
+			const toAxisFromEnd = vectormath.transformVector(vectormath.xyzAxisAngleToTransform(0,0,1,angle), toAxisFromStart);
+			const axisPosition = vectormath.addVectors(currentPosition, toAxisFromStart);
+			const endPosition = vectormath.subtractVectors(axisPosition, toAxisFromEnd);
+			//console.log("(forward = "+vectorToString(forward)+"; turned = "+vectorToString(turned)+"; start = "+vectorToString(currentPosition)+"; end = "+vectorToString(endPosition)+")");
+			const axisVertexIndex = this.findVertex(axisPosition)
+			const endVertexIndex = this.findVertex(endPosition);
+			if( shape == "Round" ) {
+				this.path.segments.push({
+					typeName: angle < 0 ? "ClockwisePathSegment" : "CounterClockwisePathSegment",
+					startVertexIndex: this.currentVertexIndex,
+					endVertexIndex,
+					axisVertexIndex,
+				});
+			} else {
+				this.path.segments.push({
+					typeName: "StraightPathSegment",
+					startVertexIndex: this.currentVertexIndex,
+					endVertexIndex,
+				});
+			}
+			this.currentVertexIndex = endVertexIndex;
+		}
+		this.currentDirection = vectormath.transformVector(vectormath.xyzAxisAngleToTransform(0,0,1,angle), this._currentDirection);
+		return this;
+	}
+	lineToCornerStart(cornerPosition:Vector3D, angle:number, radius:number) {
+		const forward = vectormath.subtractVectors(cornerPosition, this.currentPosition);
+		const cornerLength = radius * Math.sin(angle); // I think
+		const forwardLength = vectormath.vectorLength(forward);
+		const shortenedLength = forwardLength - cornerLength;
+		const shortened = vectormath.scaleVector(forward, shortenedLength / forwardLength);
+		this.lineTo(vectormath.addVectors(this.currentPosition, shortened));
+	}
+
+	curveTo(vec:Vector3D, endForward:Vector3D):PathBuilder {
 		throw new Error("CurveTo not yet implemented");
 	}
+
+	closeLoop():PathBuilder {
+		this.lineTo(this.path.vertexes[0]);
+		return this;
+	}
+}
+
+interface CornerOptions {
+	cornerStyleName:CornerStyleName;
+	cornerRadius:number;
+}
+const fullTurnAngle = Math.PI*2;
+const quarterTurn = Math.PI/2;
+const eighthTurnAngle = Math.PI/4;
+
+interface BoxOptions {
+	width:number;
+	height:number;
+	cornerOptions:CornerOptions;
+}
+
+function boxPath(boxOptions:BoxOptions) {
+	const w = boxOptions.width;
+	const h = boxOptions.height;
+	const c = boxOptions.cornerOptions.cornerRadius;
+	const cs = boxOptions.cornerOptions.cornerStyleName;
+	let pb = new PathBuilder({x:c, y:0, z:0});
+	pb.lineToCornerStart({x:w,y:0,z:0}, quarterTurn, c);
+	pb.turn(quarterTurn, c, cs);
+	pb.lineToCornerStart({x:w,y:h,z:0}, quarterTurn, c);
+	pb.turn(quarterTurn, c, cs);
+	pb.lineToCornerStart({x:0,y:h,z:0}, quarterTurn, c);
+	pb.turn(quarterTurn, c, cs);
+	pb.lineToCornerStart({x:0,y:0,z:0}, quarterTurn, c);
+	pb.turn(quarterTurn, c, cs);
+	return pb.closeLoop().path;
+}
+
+function centeredCirclePath(radius:number):Path {
+	let pb = new PathBuilder({x:0, y:-radius, z:0});
+	return pb.turn(fullTurnAngle, radius).closeLoop().path;
 }
 
 interface DistanceUnit {
@@ -81,13 +176,32 @@ const MM : DistanceUnit = {
 	unitValueInMm:1,
 };
 
-interface PathCarveOptions
+interface PathCarveTask
 {
+	typeName:"PathCarveTask";
+	paths:Path[];
 	depth:number;
 }
 
+interface HoleDrillTask
+{
+	typeName:"HoleDrillTask";
+	positions:Vector3D[];
+	diameter:number;
+	depth:number;
+}
+
+type Task = PathCarveTask|HoleDrillTask;
+
+interface Job
+{
+	name:string;
+	offset:Vector3D;
+	tasks:Task[];
+}
+
 class GCodeGenerator {
-	public bitRadius:number;
+	public bitDiameter:number = 0.1;
 	public emitter:(s:string)=>string;
 	public transformation:TransformationMatrix3D;
 	public unit:DistanceUnit;
@@ -95,25 +209,35 @@ class GCodeGenerator {
 	public minimumFastZ:number = 1/16;
 	public stepDown:number = 0.02;
 	public fractionDigits:number = 4;
-	protected savedTransformations:TransformationMatrix3D[] = [];
 	protected _position = {x:0, y:0, z:0};
 	constructor() {
-		this.bitRadius = 3;
 		this.emitter = console.log.bind(console);
 		this.transformation = vectormath.createIdentityTransform();
 		this.unit = INCH;
 	}
-	pushTransform(xf:TransformationMatrix3D):void {
-		this.savedTransformations.push(this.transformation);
-		this.transformation = vectormath.multiplyTransform(this.transformation, xf);
+	withTransform(xf:TransformationMatrix3D, callback:()=>void) {
+		let oldTransform = this.transformation;
+		this.transformation = vectormath.multiplyTransform(oldTransform, xf);
+		callback();
+		this.transformation = oldTransform;
 	}
-	popTransform():void {
-		let popped = this.savedTransformations.pop();
-		if( popped == undefined ) throw new Error("Tried to pop transform from empty stack!");
-		this.transformation = popped;
+	forEachOffset(offsets:Vector3D[], callback:()=>void ) {
+		let oldTransform = this.transformation;
+		for( let o in offsets ) {
+			this.transformation = vectormath.multiplyTransform(oldTransform, vectormath.translationToTransform(offsets[o]));
+			callback();
+		}
+		this.transformation = oldTransform;
 	}
 	protected transformVector(vec:Vector3D):Vector3D {
 		return vectormath.transformVector(this.transformation, vec);
+	}
+	protected updatePosition(x:number|undefined, y:number|undefined, z:number|undefined):void {
+		this._position = {
+			x: x == undefined ? this._position.x : x,
+			y: y == undefined ? this._position.y : y,
+			z: z == undefined ? this._position.z : z,
+		};
 	}
 	emit(line:string):void {
 		this.emitter(line);
@@ -137,17 +261,34 @@ class GCodeGenerator {
 		if( y != undefined ) line += " Y"+y.toFixed(this.fractionDigits);
 		if( z != undefined ) line += " Z"+z.toFixed(this.fractionDigits);
 		this.emit(line)
-		this._position = {
-			x: x == undefined ? this._position.x : x,
-			y: y == undefined ? this._position.y : y,
-			z: z == undefined ? this._position.z : z,
-		};
+		this.updatePosition(x,y,z);
 	}
 	g00(x:number|undefined, y:number|undefined, z:number|undefined=undefined) {
 		this.doMove("G00", x, y, z);
 	}
 	g01(x:number|undefined, y:number|undefined, z:number|undefined=undefined) {
 		this.doMove("G01", x, y, z);
+	}
+	doCurve(command:string, x:number|undefined, y:number|undefined, z:number|undefined, i:number, j:number, k:number) {
+		if( x == undefined && y == undefined && z == undefined ) {
+			this.emitComment("doCurve with no x, y, or z!");
+			return;
+		}
+		let line = command;
+		line += " I"+i.toFixed(this.fractionDigits);
+		line += " J"+j.toFixed(this.fractionDigits);
+		line += " K"+k.toFixed(this.fractionDigits);
+		if( x != undefined ) line += " X"+x.toFixed(this.fractionDigits);
+		if( y != undefined ) line += " Y"+y.toFixed(this.fractionDigits);
+		if( z != undefined ) line += " Z"+z.toFixed(this.fractionDigits);
+		this.emit(line);
+		this.updatePosition(x,y,z);
+	}
+	g02(x:number|undefined, y:number|undefined, z:number|undefined, i:number, j:number, k:number) {
+		this.doCurve("G02",x,y,z,i,j,k);
+	}
+	g03(x:number|undefined, y:number|undefined, z:number|undefined, i:number, j:number, k:number) {
+		this.doCurve("G03",x,y,z,i,j,k);
 	}
 	emitSetupCode():void {
 		this.emit("G90");
@@ -190,23 +331,36 @@ class GCodeGenerator {
 		}
 		let startVertex = this.transformVector(path.vertexes[startVertexIndex]);
 		let endVertex = this.transformVector(path.vertexes[endVertexIndex]);
-		// Theoretically vertexes could have depth.  I'm ignoring that for now.
-		this.g01(endVertex.x, endVertex.y);
+		// Theoretically path vertexes could have depth.  I'm ignoring that for now.
+		if(segment.typeName == "StraightPathSegment") {
+			this.g01(endVertex.x, endVertex.y);
+		} else {
+			let axisVertexIndex = segment.axisVertexIndex;
+			if( axisVertexIndex == undefined ) {
+				throw new Error("Undefined curve center vertex on path segment "+segmentIndex);
+			}
+			let curveCenterVertex = this.transformVector(path.vertexes[axisVertexIndex]);
+			let i = curveCenterVertex.x - startVertex.x;
+			let j = curveCenterVertex.y - startVertex.y;
+			let k = curveCenterVertex.z - startVertex.z;
+			let angle = direction * (segment.typeName == "CounterClockwisePathSegment" ? 1 : -1)
+			this.doCurve(direction > 0 ? "G03" : "G02", endVertex.x, endVertex.y, undefined, i, j, k);
+		}
 	}
-	emitPath(path:Path, opts:PathCarveOptions):void {
+	carvePath(path:Path, depth:number):void {
 		if(path.vertexes.length == 0) return;
-		if(opts.depth <= 0) return;
+		if(depth <= 0) return;
 
-		let targetZ = 0 - opts.depth;
+		let targetZ = 0 - depth;
 		let startPoint = path.vertexes[0];
 		this.zoomTo(startPoint);
 		let currentZ = 0;
 		let direction = 1;
 		while( currentZ > targetZ ) {
-			let startPosition = this._position;
 			currentZ = Math.max(targetZ, currentZ - this.stepDown);
 			this.emitComment("Step down to "+currentZ.toFixed(this.fractionDigits));
 			this.g01(undefined, undefined, currentZ);
+			let startPosition = this._position;
 			let ssi0:number, ssi1:number, ssii:number;
 			if( direction > 0 ) {
 				ssi0 = 0;
@@ -223,21 +377,111 @@ class GCodeGenerator {
 			}
 			if( !vectormath.vectorsAreEqual(this._position, startPosition) ) {
 				// Unless it's a loop, reverse for the next step!
+				this.emitComment("Reversing because "+vectorToString(this._position)+" != "+vectorToString(startPosition));
 				direction = -direction;
+			} else {
+				this.emitComment("Path closed!")
 			}
 		}
+		this.zoomToZoomHeight();
 	}
-	emitTogPanel():void {
-		const path = new PathBuilder().startAt({x:0,y:0,z:0}).lineTo({x:4,y:0,z:0}).lineTo({x:4,y:3.5,z:0}).lineTo({x:0,y:3.5,z:0}).lineTo({x:0,y:0,z:0}).path;
-		this.emitPath(path, {
-			depth: 0.125,
+	doPathCarveTask(task:PathCarveTask) {
+		for( let p in task.paths ) {
+			this.carvePath(task.paths[p], task.depth);
+		}
+	}
+	bangHole(depth:number, stepDown:number, stepUp:number) {
+		let currentZ = 0;
+		let targetZ = 0 - depth;
+		this.g01(undefined, undefined, currentZ); // If it's not already at the surface
+		while( currentZ > targetZ ) {
+			currentZ -= stepDown;
+			this.g01(undefined, undefined, currentZ);
+			this.g01(undefined, undefined, currentZ + stepUp);
+		}
+		this.g01(undefined, undefined, 0);
+	}
+	doHoleDrillTask(task:HoleDrillTask) {
+		let circleRadius = task.diameter/2 - this.bitDiameter/2;
+		if( circleRadius <= 0 ) {
+			this.emitComment(task.diameter + this.unit.name + " hole will be a banger");
+			for( let p in task.positions ) {
+				this.zoomTo(task.positions[p]);
+				this.bangHole(task.depth, this.stepDown, this.stepDown/2);
+			}
+		} else {
+			this.emitComment(task.diameter + this.unit.name + " hole will be circles");
+			const path = centeredCirclePath(circleRadius);
+			this.forEachOffset(task.positions, () => {
+				this.carvePath(path, task.depth);
+			})
+		}
+	}
+	doTask(task:Task) {
+		switch(task.typeName) {
+		case "PathCarveTask": return this.doPathCarveTask(task);
+		case "HoleDrillTask": return this.doHoleDrillTask(task);
+		}
+	}
+	doJob(job:Job):void {
+		this.emitBlankLine();
+		this.emitComment("Job: "+job.name);
+		this.withTransform(vectormath.translationToTransform(job.offset), () => {
+			for( let p in job.tasks ) {
+				this.doTask(job.tasks[p]);
+			}
 		});
 	}
+}
+
+interface TOGPanelOptions {
+	width: number; // Width in inches
+	cornerStyle: CornerStyleName;
+	outlineDepth: number;
+	holeDepth: number;
+}
+
+function makeTogPanelTasks(options:TOGPanelOptions):Task[] {
+	let holeX = 0.25;
+	let holePositions = [];
+	for( let x=0.25; x<options.width; x += 0.5 ) {
+		holePositions.push({x, y:0.25, z:0});
+	}
+	for( let x=0.25; x<options.width; x += 0.5 ) {
+		holePositions.push({x, y:3.25, z:0});
+	}
+	return [
+		{
+			typeName: "PathCarveTask",
+			depth: 1/16,
+			paths: [
+				boxPath({
+					width: options.width, height: 3.5,
+					cornerOptions: { cornerRadius: 0.25, cornerStyleName: "Round" }
+				})
+			]
+		},
+		{
+			typeName: "HoleDrillTask",
+			depth: options.holeDepth,
+			diameter: 5/32,
+			positions: holePositions
+		}
+	];
 }
 
 if( require.main == module ) {
 	let gcg = new GCodeGenerator();
 	gcg.emitSetupCode();
-	gcg.emitTogPanel();
+	gcg.doJob({
+		name: "TOGPanel",
+		offset: {x:0, y:0, z:0},
+		tasks: makeTogPanelTasks({
+			cornerStyle: "Round",
+			holeDepth: 1/8,
+			outlineDepth: 1/16,
+			width: 2
+		})
+	});
 	gcg.emitShutdownCode();
 }
