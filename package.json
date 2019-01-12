@@ -1,6 +1,6 @@
 {
-  "name": "ts-template-project",
-  "description": "Template for TypeScript projects so I can start them quicker",
+  "name": "ttsgcg",
+  "description": "TOGoS's TypeScript G-Code Generator",
   "version": "0.0.1",
   "license": "MIT",
   "main": "target/cjs",

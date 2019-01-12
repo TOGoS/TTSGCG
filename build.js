@@ -95,6 +95,11 @@ builder.targets = {
 		// so we can't just use cat; sed -e '$s/$/\\n/' adds one.
 		invoke: (ctx) => concatJsFiles(ctx.prereqNames, ctx.targetName),
 	},
+	"run": {
+		isFile: false,
+		prereqs: ["target/cjs"],
+		invoke: (ctx) => ctx.builder.doCmd("node target/cjs/GCodeGenerator.js")
+	},
 	"run-unit-tests": {
 		isFile: false,
 		prereqs: ["target/cjs"],

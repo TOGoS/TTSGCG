@@ -34,6 +34,14 @@ export function multiplyTransform(m1:TransformationMatrix3D, m2:TransformationMa
 	};
 }
 
+export function transformVector(m:TransformationMatrix3D, vec:Vector3D):Vector3D {
+	return {
+		x: m.xx*vec.x + m.xy*vec.y + m.xz*vec.z + m.x1,
+		y: m.yx*vec.x + m.yy*vec.y + m.yz*vec.z + m.y1,
+		z: m.zx*vec.x + m.zy*vec.y + m.zz*vec.z + m.z1,
+	};
+}
+
 export function xyzAxisAngleToTransform( x:number, y:number, z:number, angle:number):TransformationMatrix3D {
 	const c = Math.cos(angle);
 	const s = Math.sin(angle);
@@ -48,4 +56,8 @@ export function xyzAxisAngleToTransform( x:number, y:number, z:number, angle:num
 
 export function axisAngleToTransform( axis:Vector3D, angle:number, dest:TransformationMatrix3D):TransformationMatrix3D {
 	return xyzAxisAngleToTransform(axis.x, axis.y, axis.z, angle);
+}
+
+export function vectorsAreEqual( v1:Vector3D, v2:Vector3D ):boolean {
+	return v1.x == v2.x && v1.y == v2.y && v1.z == v2.z;
 }
