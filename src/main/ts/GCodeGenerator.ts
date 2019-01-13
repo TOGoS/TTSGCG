@@ -227,8 +227,8 @@ const togBlockLetters:Charset = (() => {
 			blockVertexes.push({x: x / 3 - 0.5, y: 0.5 - y / 3, z:0});
 		}
 	}
-	function mkblok(...vertexLists:number[][]):TextCharacter {
-		let paths:Path[] = [outlinePath];
+	function mkblok(vertexLists:number[][]):TextCharacter {
+		let paths:Path[] = [];
 		for( let vl in vertexLists ) {
 			let vertexList = vertexLists[vl];
 			let segments:PathSegment[] = [];
@@ -253,10 +253,31 @@ const togBlockLetters:Charset = (() => {
 			}
 		}
 	}
+	const outline = [aa,da,dd,ad,aa];
+	const s_char = mkblok([outline,[bb,bd],[ca,cc]]);
+	const z_char = mkblok([outline, [ba,bc], [cb,cd]]);
 	return {
 		characters: {
-			"W": mkblok([ab,cb],[ac,cc]),
-			"S": mkblok([bb,bd],[ca,cc]),
+			"E": mkblok([outline,[bb,bd],[cb,cd]]),
+			"I": mkblok([[aa,ba,bb,cb,ca,da,dd,cd,cc,bc,bd,ad,aa]]),
+			"M": mkblok([outline,[bb,db],[bc,dc]]),
+			"T": mkblok([[aa,ba,bb,db,dc,bc,bd,ad,aa]]),
+			"O": mkblok([outline,[bb,bc,cc,cb,bb]]),
+			"Q": mkblok([outline,[bb,bc,cb,bb]]),
+			"S": s_char,
+			"W": mkblok([outline,[ab,cb],[ac,cc]]),
+			"Z": z_char,
+			"-": mkblok([[ba,ca,cd,bd,ba]]),
+			"0": mkblok([outline,[bb,bc,cc,cb,bb]]),
+			"1": mkblok([[aa,ba,bb,cb,ca,da,dd,cd,cc,ac,aa]]),
+			"2": z_char,
+			"3": mkblok([outline, [ba,bc], [ca,cc]]),
+			"4": mkblok([[aa,ca,cc,dc,dd,ad,ac,bc,bb,ab,aa]]),
+			"5": s_char,
+			"6": mkblok([outline, [bb,bd], [cb,cc]]),
+			"7": mkblok([[aa,ba,bc,dc,dd,ad,aa]]),
+			"8": mkblok([outline, [bb,bc], [cb,cc]]),
+			"9": mkblok([[aa,ca,cc,dc,dd,ad,aa],[bb,bc]]),
 		}
 	}
 })();
@@ -590,6 +611,7 @@ interface TOGPanelOptions {
 	outlineDepth: number;
 	holeDepth: number;
 	label: string|undefined;
+	labelDepth: number;
 }
 
 function makeTogPanelTasks(options:TOGPanelOptions):Task[] {
@@ -603,33 +625,68 @@ function makeTogPanelTasks(options:TOGPanelOptions):Task[] {
 	}
 	let label = options.label || "";
 	let labelShape = textToShape(label, togBlockLetters);
-	return [
-		{
+	let labelScale = 0.25;
+	let tasks:Task[] = [];
+	if( options.outlineDepth > 0 ) {
+		tasks.push({
 			typeName: "PathCarveTask",
-			depth: 1/16,
+			depth: options.outlineDepth,
 			shapes: [
 				boxPath({
 					width: options.width, height: 3.5,
 					cornerOptions: { cornerRadius: 0.25, cornerStyleName: "Round" },
 					centered: false
-				}),
+				})
+			]
+		});
+	}
+	if( label.length > 0 && options.labelDepth > 0 ) {
+		tasks.push({
+			typeName: "PathCarveTask",
+			depth: options.labelDepth,
+			shapes: [
 				{
 					typeName: "TransformShape",
-					transformation: vectormath.translationToTransform({x:0.5, y:2.5, z:0}),
+					transformation: vectormath.multiplyTransform(
+						vectormath.translationToTransform({x:0.25, y:3 - labelScale/2, z:0}),
+						vectormath.scaleToTransform(0.25),
+					),
 					subShape: labelShape
 				}
 			]
-		},
-		{
+		});
+	}
+	if( options.holeDepth > 0 ) {
+		tasks.push(		{
 			typeName: "HoleDrillTask",
 			depth: options.holeDepth,
 			diameter: 5/32,
 			positions: holePositions
-		}
-	];
+		});
+	}
+	return tasks;
 }
 
 if( require.main == module ) {
+	let label = "";
+	let holeDepth = 1/8;
+	let labelDepth = 1/32;
+	let outlineDepth = 1/16;
+	for( let i=2; i<process.argv.length; ++i ) {
+		let m;
+		let arg = process.argv[i];
+		if( arg == "--no-outline" ) {
+			outlineDepth = 0;
+		} else if( arg == "--no-holes" ) {
+			holeDepth = 0;
+		} else if( (m = /^--label=(.*)$/.exec(arg)) ) {
+			label = m[1];
+		} else {
+			console.error("Unrecognized argument: "+arg);
+			process.exit(1);
+		}
+	}
+
 	let gcg = new GCodeGenerator();
 	gcg.emitSetupCode();
 	gcg.doJob({
@@ -637,10 +694,11 @@ if( require.main == module ) {
 		offset: {x:0, y:0, z:0},
 		tasks: makeTogPanelTasks({
 			cornerStyle: "Round",
-			holeDepth: 1/8,
-			outlineDepth: 1/16,
-			width: 2,
-			label: "WSITEM-0000",
+			holeDepth,
+			outlineDepth,
+			width: 4,
+			label,
+			labelDepth,
 		})
 	});
 	gcg.emitShutdownCode();

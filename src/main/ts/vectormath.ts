@@ -22,6 +22,18 @@ export function translationToTransform(v:Vector3D):TransformationMatrix3D {
 	}
 }
 
+export function scaleToTransform(s:number|Vector3D):TransformationMatrix3D {
+	if( typeof(s) == 'number' ) {
+		s = {x:s, y:s, z:s};
+	}
+	return {
+		xx:s.x, xy:0, xz: 0, x1:0,
+		yx:0, yy:s.y, yz: 0, y1:0,
+		zx:0, zy:0, zz: s.z, z1:0,
+	}
+}
+
+
 export function multiplyTransform(m1:TransformationMatrix3D, m2:TransformationMatrix3D):TransformationMatrix3D {
 	const xx = m1.xx * m2.xx + m1.xy * m2.yx + m1.xz * m2.zx + 0;
 	const xy = m1.xx * m2.xy + m1.xy * m2.yy + m1.xz * m2.zy + 0;
