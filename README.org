@@ -1,3 +1,7 @@
 #+TITLE: TOGoS's TypeScript G-Code Generator
 
-Generate simple G-code for milling stuff, in JavaScript.
+Generate simple G-code for milling stuff, in TypeScript.
+
+I created this project because I wanted a simple command-line program for generating bits of G-code to cut lines and holes.
+Existing programs for generating G-Code were hard for me to understand,
+too specific to an OS other than the one I'm using, or too crash-prone.

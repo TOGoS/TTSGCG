@@ -1,0 +1,4 @@
+*** TODO Make a small panel with "TTSGCG" on it and stick that in here to have an attractive README
+*** TODO Publish as an NPM package
+*** TODO Holes should be a shape instead of a separate task type
+*** TODO Add option to generate SVG or draw to a <canvas> instead of G-code
