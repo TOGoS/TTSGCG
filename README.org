@@ -1,6 +1,6 @@
 #+TITLE: TOGoS's TypeScript G-Code Generator
 
-[[[[http://picture-files.nuke24.net/uri-res/raw/urn:bitprint:7IUJEPDEDK2T27BVEOQJEM6UB5K5ZIEV.QHH3EF5K4I5LGDYNDWXZBJUJY64FVOU2JF625OQ/TTSGCG-v3.png]]]]
+[[http://picture-files.nuke24.net/uri-res/raw/urn:bitprint:DE7LKZ6VJC35NFDGYEFFIRPYBZ4CXGIN.JKSIBCGCR7XB5U4LNRDEZX4K2O6TOV2SLDRNICQ/TTSGCG-v4.png]]
 
 Generate simple G-code for milling stuff, in TypeScript.
 
