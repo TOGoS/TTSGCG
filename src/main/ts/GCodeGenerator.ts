@@ -638,19 +638,6 @@ function makeTogPanelTasks(options:TOGPanelOptions):Task[] {
 	let label = options.label || "";
 	let labelShape = textToShape(label, togBlockLetters);
 	let tasks:Task[] = [];
-	if( options.outlineDepth > 0 ) {
-		tasks.push({
-			typeName: "PathCarveTask",
-			depth: options.outlineDepth,
-			shapes: [
-				boxPath({
-					width: options.length, height: 3.5,
-					cornerOptions: { cornerRadius: 0.25, cornerStyleName: "Round" },
-					centered: false
-				})
-			]
-		});
-	}
 	if( label.length > 0 && options.labelDepth > 0 ) {
 		let textPlacementTransform:TransformationMatrix3D;
 		if( options.labelDirection == "longitudinal" ) {
@@ -683,6 +670,19 @@ function makeTogPanelTasks(options:TOGPanelOptions):Task[] {
 			depth: options.holeDepth,
 			diameter: 5/32,
 			positions: holePositions
+		});
+	}
+	if( options.outlineDepth > 0 ) {
+		tasks.push({
+			typeName: "PathCarveTask",
+			depth: options.outlineDepth,
+			shapes: [
+				boxPath({
+					width: options.length, height: 3.5,
+					cornerOptions: { cornerRadius: 0.25, cornerStyleName: "Round" },
+					centered: false
+				})
+			]
 		});
 	}
 	return tasks;
