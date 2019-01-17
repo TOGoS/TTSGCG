@@ -258,7 +258,9 @@ const togBlockLetters:Charset = (() => {
 	const z_char = mkblok([outline, [ba,bc], [cb,cd]]);
 	return {
 		characters: {
+			"C": mkblok([[aa,da,dd,cd,cb,bb,bd,ad,aa]]),
 			"E": mkblok([outline,[bb,bd],[cb,cd]]),
+			"G": mkblok([outline,[bd,bb,cb,cc]]),
 			"I": mkblok([[aa,ba,bb,cb,ca,da,dd,cd,cc,bc,bd,ad,aa]]),
 			"M": mkblok([outline,[bb,db],[bc,dc]]),
 			"T": mkblok([[aa,ba,bb,db,dc,bc,bd,ad,aa]]),
@@ -605,27 +607,31 @@ class GCodeGenerator {
 	}
 }
 
+type PanelAxis = "x"|"y";
+type LatOrLong = "longitudinal"|"lateral";
+
 interface TOGPanelOptions {
-	width: number; // Width in inches
+	length: number; // Width in inches
 	cornerStyle: CornerStyleName;
 	outlineDepth: number;
 	holeDepth: number;
 	label: string|undefined;
 	labelDepth: number;
+	labelScale: number;
+	labelDirection: LatOrLong;
 }
 
 function makeTogPanelTasks(options:TOGPanelOptions):Task[] {
 	let holeX = 0.25;
 	let holePositions = [];
-	for( let x=0.25; x<options.width; x += 0.5 ) {
+	for( let x=0.25; x<options.length; x += 0.5 ) {
 		holePositions.push({x, y:0.25, z:0});
 	}
-	for( let x=0.25; x<options.width; x += 0.5 ) {
+	for( let x=0.25; x<options.length; x += 0.5 ) {
 		holePositions.push({x, y:3.25, z:0});
 	}
 	let label = options.label || "";
 	let labelShape = textToShape(label, togBlockLetters);
-	let labelScale = 0.25;
 	let tasks:Task[] = [];
 	if( options.outlineDepth > 0 ) {
 		tasks.push({
@@ -633,7 +639,7 @@ function makeTogPanelTasks(options:TOGPanelOptions):Task[] {
 			depth: options.outlineDepth,
 			shapes: [
 				boxPath({
-					width: options.width, height: 3.5,
+					width: options.length, height: 3.5,
 					cornerOptions: { cornerRadius: 0.25, cornerStyleName: "Round" },
 					centered: false
 				})
@@ -641,6 +647,16 @@ function makeTogPanelTasks(options:TOGPanelOptions):Task[] {
 		});
 	}
 	if( label.length > 0 && options.labelDepth > 0 ) {
+		let textPlacementTransform:TransformationMatrix3D;
+		if( options.labelDirection == "longitudinal" ) {
+			textPlacementTransform = vectormath.translationToTransform({x:0.25, y:3 - options.labelScale/2, z:0});
+		} else {
+			textPlacementTransform = vectormath.multiplyTransform(
+				vectormath.translationToTransform({x:options.length/2, y:0.5, z:0}),
+				vectormath.xyzAxisAngleToTransform(0, 0, 1, quarterTurn)
+			);
+		}
+
 		tasks.push({
 			typeName: "PathCarveTask",
 			depth: options.labelDepth,
@@ -648,8 +664,8 @@ function makeTogPanelTasks(options:TOGPanelOptions):Task[] {
 				{
 					typeName: "TransformShape",
 					transformation: vectormath.multiplyTransform(
-						vectormath.translationToTransform({x:0.25, y:3 - labelScale/2, z:0}),
-						vectormath.scaleToTransform(0.25),
+						textPlacementTransform,
+						vectormath.scaleToTransform(options.labelScale),
 					),
 					subShape: labelShape
 				}
@@ -657,7 +673,7 @@ function makeTogPanelTasks(options:TOGPanelOptions):Task[] {
 		});
 	}
 	if( options.holeDepth > 0 ) {
-		tasks.push(		{
+		tasks.push({
 			typeName: "HoleDrillTask",
 			depth: options.holeDepth,
 			diameter: 5/32,
@@ -668,10 +684,13 @@ function makeTogPanelTasks(options:TOGPanelOptions):Task[] {
 }
 
 if( require.main == module ) {
-	let label = "";
+	let label = "TTSGCG";
 	let holeDepth = 1/8;
 	let labelDepth = 1/32;
+	let labelScale = 2.5/6;
 	let outlineDepth = 1/16;
+	let length = 1;
+	let labelDirection:LatOrLong = "lateral";
 	for( let i=2; i<process.argv.length; ++i ) {
 		let m;
 		let arg = process.argv[i];
@@ -681,6 +700,8 @@ if( require.main == module ) {
 			holeDepth = 0;
 		} else if( (m = /^--label=(.*)$/.exec(arg)) ) {
 			label = m[1];
+		} else if( (m = /^--label-direction=(longitudinal|lateral)$/.exec(arg)) ) {
+			labelDirection = <LatOrLong>m[1];
 		} else {
 			console.error("Unrecognized argument: "+arg);
 			process.exit(1);
@@ -696,9 +717,11 @@ if( require.main == module ) {
 			cornerStyle: "Round",
 			holeDepth,
 			outlineDepth,
-			width: 4,
+			length,
 			label,
 			labelDepth,
+			labelScale,
+			labelDirection,
 		})
 	});
 	gcg.emitShutdownCode();
