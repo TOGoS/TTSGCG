@@ -337,6 +337,7 @@ const MM : DistanceUnit = {
 	unitValueInMm:1,
 };
 
+/** Carve 2D shapes at a single depth */
 interface PathCarveTask
 {
 	typeName:"PathCarveTask";
@@ -344,6 +345,7 @@ interface PathCarveTask
 	depth:number;
 }
 
+/** @deprecated; just use RoundHole shapes instead */
 interface HoleDrillTask
 {
 	typeName:"HoleDrillTask";
@@ -354,6 +356,10 @@ interface HoleDrillTask
 
 type Task = PathCarveTask|HoleDrillTask;
 
+/**
+ * A job is a bunch of stuff that the machine should be able to do all at once.
+ * Different jobs may require bit changes or other setup.
+ */
 interface Job
 {
 	name:string;
