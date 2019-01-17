@@ -365,6 +365,7 @@ class GCodeGenerator {
 	public minimumFastZ:number = 1/16;
 	public stepDown:number = 0.02;
 	public fractionDigits:number = 4;
+	public commentMode:"None"|"Parentheses"|"Semicolon" = "Parentheses";
 	protected _position = {x:0, y:0, z:0};
 	constructor() {
 		this.emitter = console.log.bind(console);
@@ -402,7 +403,11 @@ class GCodeGenerator {
 		this.emit("");
 	}
 	emitComment(c:string):void {
-		this.emit("("+c+")");
+		switch(this.commentMode) {
+		case "None": return;
+		case "Parentheses": return this.emit("("+c+")");
+		case "Semicolon": return this.emit("; "+c);
+		}
 	}
 	emitBlock(lines:string[]):void {
 		for(let l in lines) this.emitter(lines[l]);
@@ -696,8 +701,12 @@ if( require.main == module ) {
 		let arg = process.argv[i];
 		if( arg == "--no-outline" ) {
 			outlineDepth = 0;
+		} else if( (m = /^--outline-depth=(.*)$/.exec(arg)) ) {
+			outlineDepth = +m[1];
 		} else if( arg == "--no-holes" ) {
 			holeDepth = 0;
+		} else if( (m = /^--hole-depth=(.*)$/.exec(arg)) ) {
+			holeDepth = +m[1];
 		} else if( (m = /^--label=(.*)$/.exec(arg)) ) {
 			label = m[1];
 		} else if( (m = /^--label-direction=(longitudinal|lateral)$/.exec(arg)) ) {
@@ -709,6 +718,7 @@ if( require.main == module ) {
 	}
 
 	let gcg = new GCodeGenerator();
+	gcg.commentMode = "None";
 	gcg.emitSetupCode();
 	gcg.doJob({
 		name: "TOGPanel",
