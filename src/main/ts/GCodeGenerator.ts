@@ -174,7 +174,12 @@ interface MultiShape {
 	typeName:"MultiShape";
 	subShapes:Shape[];
 }
-type Shape = TransformShape|MultiShape|Path;
+interface RoundHoles {
+	typeName:"RoundHoles";
+	positions:Vector3D[];
+	diameter:number;
+}
+type Shape = TransformShape|MultiShape|Path|RoundHoles;
 
 //// Text
 
@@ -354,6 +359,10 @@ interface Job
 	name:string;
 	offset:Vector3D;
 	tasks:Task[];
+}
+
+function assertUnreachable(n:never) {
+	throw new Error("Shouldn't've made it here");
 }
 
 class GCodeGenerator {
@@ -547,6 +556,22 @@ class GCodeGenerator {
 		}
 		this.zoomToZoomHeight();
 	}
+	carveHoles(positions:Vector3D[], diameter:number, depth:number) {
+		let circleRadius = diameter/2 - this.bitDiameter/2;
+		if( circleRadius <= 0 ) {
+			this.emitComment(diameter + this.unit.name + " hole will be a banger");
+			for( let p in positions ) {
+				this.zoomTo(positions[p]);
+				this.bangHole(depth, this.stepDown, this.stepDown/2);
+			}
+		} else {
+			this.emitComment(diameter + this.unit.name + " hole will be circles");
+			const path = circlePath(circleRadius);
+			this.forEachOffset(positions, () => {
+				this.carvePath(path, depth);
+			})
+		}
+	}
 	carveShape(shape:Shape, depth:number) {
 		switch(shape.typeName) {
 		case "MultiShape":
@@ -560,8 +585,10 @@ class GCodeGenerator {
 			});
 		case "Path":
 			return this.carvePath(shape, depth);
-
+		case "RoundHoles":
+			return this.carveHoles(shape.positions, shape.diameter, depth);
 		}
+		assertUnreachable(shape);
 	}
 	doPathCarveTask(task:PathCarveTask) {
 		for( let p in task.shapes ) {
@@ -580,20 +607,7 @@ class GCodeGenerator {
 		this.g01(undefined, undefined, 0);
 	}
 	doHoleDrillTask(task:HoleDrillTask) {
-		let circleRadius = task.diameter/2 - this.bitDiameter/2;
-		if( circleRadius <= 0 ) {
-			this.emitComment(task.diameter + this.unit.name + " hole will be a banger");
-			for( let p in task.positions ) {
-				this.zoomTo(task.positions[p]);
-				this.bangHole(task.depth, this.stepDown, this.stepDown/2);
-			}
-		} else {
-			this.emitComment(task.diameter + this.unit.name + " hole will be circles");
-			const path = circlePath(circleRadius);
-			this.forEachOffset(task.positions, () => {
-				this.carvePath(path, task.depth);
-			})
-		}
+		return this.carveHoles(task.positions, task.diameter, task.depth);
 	}
 	doTask(task:Task) {
 		switch(task.typeName) {
@@ -666,10 +680,15 @@ function makeTogPanelTasks(options:TOGPanelOptions):Task[] {
 	}
 	if( options.holeDepth > 0 ) {
 		tasks.push({
-			typeName: "HoleDrillTask",
+			typeName: "PathCarveTask",
 			depth: options.holeDepth,
-			diameter: 5/32,
-			positions: holePositions
+			shapes: [
+				{
+					typeName: "RoundHoles",
+					diameter: 5/32,
+					positions: holePositions
+				}
+			]
 		});
 	}
 	if( options.outlineDepth > 0 ) {
