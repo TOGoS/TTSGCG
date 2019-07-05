@@ -519,6 +519,7 @@ type Task = PathCarveTask;
 interface Job
 {
 	name:string;
+	bit:RouterBit;
 	offset:Vector3D;
 	tasks:Task[];
 }
@@ -527,8 +528,12 @@ function assertUnreachable(n:never) {
 	throw new Error("Shouldn't've made it here");
 }
 
+interface RouterBit {
+	name:string;
+	diameterFunction:(depth:number)=>number;
+}
+
 class GCodeGenerator {
-	public bitDiameter:number = 0.1;
 	public emitter:(s:string)=>string;
 	public transformation:TransformationMatrix3D;
 	public unit:DistanceUnit;
@@ -538,6 +543,7 @@ class GCodeGenerator {
 	public fractionDigits:number = 4;
 	public commentMode:"None"|"Parentheses"|"Semicolon" = "Parentheses";
 	protected _position = {x:0, y:0, z:0};
+	protected currentBit:RouterBit;
 	constructor() {
 		this.emitter = console.log.bind(console);
 		this.transformation = vectormath.createIdentityTransform();
@@ -720,7 +726,7 @@ class GCodeGenerator {
 		this.zoomToZoomHeight();
 	}
 	carveHoles(positions:Vector3D[], diameter:number, depth:number) {
-		let circleRadius = diameter/2 - this.bitDiameter/2;
+		let circleRadius = diameter/2 - this.currentBit.diameterFunction(0)/2;
 		if( circleRadius <= 0 ) {
 			this.emitComment(diameter + this.unit.name + " hole will be a banger");
 			for( let p in positions ) {
@@ -777,6 +783,7 @@ class GCodeGenerator {
 		}
 	}
 	doJob(job:Job):void {
+		this.currentBit = job.bit;
 		this.emitBlankLine();
 		this.emitComment("Job: "+job.name);
 		this.withTransform(vectormath.translationToTransform(job.offset), () => {
@@ -798,9 +805,15 @@ function htmlEscape(text:string) {
 
 class SVGGenerator {
 	public emitter:(s:string)=>string;
-	public transformation:TransformationMatrix3D;
-	protected strokeColor = "black";
-	protected strokeWidth = 0.01;
+	protected bottomColor = "black";
+	protected cutColor = "gray";
+
+	// Updated as jobs/tasks are processed
+	protected routerBit:RouterBit;
+	protected transformation:TransformationMatrix3D;
+	protected strokeColor = "purple";
+	protected strokeWidth:number = 0;
+
 	constructor() {
 		this.emitter = console.log.bind(console);
 		this.transformation = vectormath.createIdentityTransform();
@@ -856,17 +869,21 @@ class SVGGenerator {
 			}
 			prevVertexIndex = seg.endVertexIndex;
 		}
-		this.openElement("path", {"fill": "none", "stroke": this.strokeColor, "stroke-width": this.strokeWidth, "d": dParts.join(" ")}, true);
+		this.openElement("path", {"fill": "none", "stroke-linecap": "round", "stroke-linejoin": "round", "stroke": this.strokeColor, "stroke-width": this.strokeWidth, "d": dParts.join(" ")}, true);
 	}
 
 	emitHoles(positions:Vector3D[], diameter:number) {
 		let fill:string;
 		let stroke:string;
+		const tipWidth = this.routerBit.diameterFunction(0);
+		const extraDiam = this.strokeWidth - tipWidth;
+		const bottomDiameter = Math.max(diameter, tipWidth);
+		const circleRadius = (bottomDiameter + extraDiam)/2;
 		for( let p in positions ) {
 			let xfPos = this.transformVector(positions[p]);
 			this.openElement("circle", {
 				cx: xfPos.x, cy: xfPos.y,
-				r: Math.max(diameter, this.strokeWidth)/2,
+				r: circleRadius,
 				fill: this.strokeColor,
 				"stroke-width": 0,
 			}, true);
@@ -898,12 +915,22 @@ class SVGGenerator {
 	emitTask(task:Task) {
 		switch(task.typeName) {
 		case "PathCarveTask":
+			const cutTopWidth    = this.routerBit.diameterFunction(task.depth);
+			const cutBottomWidth = this.routerBit.diameterFunction(0);
+			if( cutTopWidth > cutBottomWidth ) {
+				this.strokeWidth = cutTopWidth;
+				this.strokeColor = this.cutColor;
+				for( let s in task.shapes ) this.emitShape(task.shapes[s]);
+			}
+			this.strokeWidth = cutBottomWidth;
+			this.strokeColor = this.bottomColor;
 			for( let s in task.shapes ) this.emitShape(task.shapes[s]);
 			break;
 		}
 	}
 
 	emitJob(job:Job) {
+		this.routerBit = job.bit;
 		for( let t in job.tasks ) {
 			this.withTransform(vectormath.translationToTransform(job.offset), () => {
 				this.emitTask(job.tasks[t]);
@@ -1008,9 +1035,18 @@ function makeTogPanelTasks(options:TOGPanelOptions):Task[] {
 	return tasks;
 }
 
+function makeVBit(degrees:number, pointSize:number):RouterBit {
+	const twiceSlope = Math.tan(degrees/2 * Math.PI/180);
+	return {
+		name: (pointSize > 0 ? pointSize + "in-tip " : "") + degrees+"-degree carving bit",
+		diameterFunction: (depth) => pointSize + depth*twiceSlope,
+	}
+}
+
 if( require.main == module ) {
 	let label = "TTSGCG";
 	let labelFontName = "tog-block-letters";
+	let bit:RouterBit = makeVBit(30, 0.05);
 	let holeDepth = 1/8;
 	let labelDepth = 1/32;
 	let labelScale = 2.5/6;
@@ -1046,6 +1082,7 @@ if( require.main == module ) {
 	let job:Job = {
 		name: "TOGPanel",
 		offset: {x:0, y:0, z:0},
+		bit,
 		tasks: makeTogPanelTasks({
 			cornerStyle: "Round",
 			labelFontName,
