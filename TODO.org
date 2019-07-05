@@ -1,4 +1,6 @@
 *** DONE Make a small panel with "TTSGCG" on it and stick that in here to have an attractive README
 *** TODO Publish as an NPM package
 *** DONE Holes should be a shape instead of a separate task type
+*** TODO Carved character set
 *** TODO Add option to generate SVG or draw to a <canvas> instead of G-code
+*** TODO Carve from a heightmap
