@@ -15,7 +15,7 @@ interface CurvedPathSegment {
 	typeName:"ClockwisePathSegment"|"CounterClockwisePathSegment";
 	startVertexIndex:number;
 	endVertexIndex:number;
-	axisVertexIndex:number|undefined;
+	axisVertexIndex:number;
 }
 type PathSegment = StraightPathSegment|CurvedPathSegment;
 
@@ -787,6 +787,144 @@ class GCodeGenerator {
 	}
 }
 
+function htmlEscape(text:string) {
+	return text
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&#039;");
+}
+
+class SVGGenerator {
+	public emitter:(s:string)=>string;
+	public transformation:TransformationMatrix3D;
+	protected strokeColor = "black";
+	protected strokeWidth = 0.01;
+	constructor() {
+		this.emitter = console.log.bind(console);
+		this.transformation = vectormath.createIdentityTransform();
+	}
+
+	withTransform(xf:TransformationMatrix3D, callback:()=>void) {
+		let oldTransform = this.transformation;
+		this.transformation = vectormath.multiplyTransform(oldTransform, xf);
+		callback();
+		this.transformation = oldTransform;
+	}
+
+	protected transformVector(vec:Vector3D):Vector3D {
+		return vectormath.transformVector(this.transformation, vec);
+	}
+
+	openElement(name:string, attrs:{[k:string]: string|number}={}, close:boolean=false) {
+		this.emitter("<"+name);
+		for( let k in attrs ) {
+			let v = attrs[k];
+			this.emitter(" "+k+"=\""+htmlEscape(""+v)+"\"");
+		}
+		if( close ) this.emitter("/>\n");
+		else this.emitter(">");
+	}
+	closeElement(name:string) {
+		this.emitter("</"+name+">");
+	}
+
+	emitPath(path:Path) {
+		let dParts:string[] = [];
+		let started = false;
+		let prevVertexIndex:number|undefined = undefined;
+		for( let s in path.segments ) {
+			let seg = path.segments[s];
+			let startVertex = this.transformVector(path.vertexes[seg.startVertexIndex]);
+			let endVertex = this.transformVector(path.vertexes[seg.endVertexIndex]);
+			if( prevVertexIndex != seg.startVertexIndex ) {
+				dParts.push("M"+startVertex.x+","+startVertex.y);
+			}
+			switch( seg.typeName ) {
+			case "StraightPathSegment":
+				dParts.push("L"+endVertex.x+","+endVertex.y);
+				break;
+			case "ClockwisePathSegment": case "CounterClockwisePathSegment":
+				let axisVertex = this.transformVector(path.vertexes[seg.axisVertexIndex]);
+				let axisDx = axisVertex.x - startVertex.x;
+				let axisDy = axisVertex.y - startVertex.y;
+				let radius = Math.sqrt(axisDx*axisDx + axisDy*axisDy);
+				// TODO: Need to take transformation into account to determine if it's clockwise or counterclockwise
+				dParts.push("A"+radius+","+radius+" 0 0 "+(seg.typeName == "ClockwisePathSegment" ? "0" : "1")+" "+endVertex.x+","+endVertex.y);
+				break;
+			}
+			prevVertexIndex = seg.endVertexIndex;
+		}
+		this.openElement("path", {"fill": "none", "stroke": this.strokeColor, "stroke-width": this.strokeWidth, "d": dParts.join(" ")}, true);
+	}
+
+	emitHoles(positions:Vector3D[], diameter:number) {
+		let fill:string;
+		let stroke:string;
+		for( let p in positions ) {
+			let xfPos = this.transformVector(positions[p]);
+			this.openElement("circle", {
+				cx: xfPos.x, cy: xfPos.y,
+				r: Math.max(diameter, this.strokeWidth)/2,
+				fill: this.strokeColor,
+				"stroke-width": 0,
+			}, true);
+		}
+	}
+
+	emitShape(shape:Shape) {
+		switch(shape.typeName) {
+		case "MultiShape":
+			for( let s in shape.subShapes ) {
+				this.emitShape(shape.subShapes[s]);
+			}
+			return;
+		case "TransformShape":
+			return this.withTransform(shape.transformation, () => {
+				this.emitShape(shape.subShape);
+			});
+		case "Path":
+			return this.emitPath(shape);
+		case "Points":
+			this.emitHoles(shape.positions, 0);
+			break;
+		case "RoundHoles":
+			this.emitHoles(shape.positions, shape.diameter);
+			return;// this.emitCircles(shape.positions, shape.diameter);
+		}
+	}
+
+	emitTask(task:Task) {
+		switch(task.typeName) {
+		case "PathCarveTask":
+			for( let s in task.shapes ) this.emitShape(task.shapes[s]);
+			break;
+		}
+	}
+
+	emitJob(job:Job) {
+		for( let t in job.tasks ) {
+			this.withTransform(vectormath.translationToTransform(job.offset), () => {
+				this.emitTask(job.tasks[t]);
+			});
+		}
+		this.closeElement("svg");
+	}
+
+	emitHeader(modelBounds:{minX:number,minY:number,maxX:number,maxY:number}) {
+		const modelWidth = modelBounds.maxX - modelBounds.minX;
+		const modelHeight = modelBounds.maxY - modelBounds.minY;
+		this.emitter('<?xml version="1.0" standalone="no"?>\n');
+		this.openElement("svg", {
+			xmlns:"http://www.w3.org/2000/svg", version:"1.1",
+			style: "width: "+modelWidth+"in; height: "+modelHeight+"in",
+			viewBox:modelBounds.minX+" "+modelBounds.minY+" "+modelWidth+" "+modelHeight,
+			transform:"scale(1,-1)"
+		});
+	}
+}
+
 type PanelAxis = "x"|"y";
 type LatOrLong = "longitudinal"|"lateral";
 
@@ -879,6 +1017,7 @@ if( require.main == module ) {
 	let outlineDepth = 1/16;
 	let length = 1;
 	let labelDirection:LatOrLong = "lateral";
+	let outputMode:"svg"|"gcode" = "gcode";
 	for( let i=2; i<process.argv.length; ++i ) {
 		let m;
 		let arg = process.argv[i];
@@ -896,16 +1035,15 @@ if( require.main == module ) {
 			labelFontName = m[1];
 		} else if( (m = /^--label-direction=(longitudinal|lateral)$/.exec(arg)) ) {
 			labelDirection = <LatOrLong>m[1];
+		} else if( arg == "--output-svg" ) {
+			outputMode = "svg";
 		} else {
 			console.error("Unrecognized argument: "+arg);
 			process.exit(1);
 		}
 	}
 
-	let gcg = new GCodeGenerator();
-	gcg.commentMode = "None";
-	gcg.emitSetupCode();
-	gcg.doJob({
+	let job:Job = {
 		name: "TOGPanel",
 		offset: {x:0, y:0, z:0},
 		tasks: makeTogPanelTasks({
@@ -919,6 +1057,25 @@ if( require.main == module ) {
 			labelScale,
 			labelDirection,
 		})
-	});
-	gcg.emitShutdownCode();
+	}
+
+	switch( outputMode ) {
+	case "gcode":
+		let gcg = new GCodeGenerator();
+		gcg.commentMode = "None";
+		gcg.emitSetupCode();
+		gcg.doJob(job);
+		gcg.emitShutdownCode();
+		break;
+	case "svg":
+		let sg = new SVGGenerator();
+		let thingWidth = 1;
+		let thingHeight = 3.5;
+		sg.emitHeader({
+			minX: -0.5, minY: -0.5,
+			maxX: 1.5, maxY: 4.0,
+		})
+		sg.emitJob(job);
+		break;
+	}
 }
