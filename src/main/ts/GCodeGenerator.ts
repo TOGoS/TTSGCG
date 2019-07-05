@@ -1023,7 +1023,9 @@ interface TOGPanelOptions {
 	length: number; // Width in inches
 	cornerStyle: CornerStyleName;
 	outlineDepth: number;
+	holeDiameter: number;
 	holeDepth: number;
+	holeSpacing: number;
 	label: string|undefined;
 	labelFontName: string;
 	labelDepth: number;
@@ -1035,10 +1037,12 @@ function makeTogPanelTasks(options:TOGPanelOptions):Task[] {
 	let holeX = 0.25;
 	const labelFont = getFont(options.labelFontName);
 	let holePositions = [];
-	for( let x=0.25; x<options.length; x += 0.5 ) {
+	let firstHoleX = 0.25;
+	let lastHoleX = options.length - 0.25;
+	for( let x = firstHoleX; x <= lastHoleX; x += options.holeSpacing ) {
 		holePositions.push({x, y:0.25, z:0});
 	}
-	for( let x=0.25; x<options.length; x += 0.5 ) {
+	for( let x = lastHoleX; x >= firstHoleX; x -= options.holeSpacing ) {
 		holePositions.push({x, y:3.25, z:0});
 	}
 	let label = options.label || "";
@@ -1077,7 +1081,7 @@ function makeTogPanelTasks(options:TOGPanelOptions):Task[] {
 			shapes: [
 				{
 					typeName: "RoundHoles",
-					diameter: 5/32,
+					diameter: options.holeDiameter,
 					positions: holePositions
 				}
 			]
@@ -1099,6 +1103,19 @@ function makeTogPanelTasks(options:TOGPanelOptions):Task[] {
 	return tasks;
 }
 
+const parseableNumberRegex = /^([+-]?\d+(?:\.\d+)?)(?:\/(\d+))?/;
+
+function parseNumber(numStr:string):number {
+	let m = parseableNumberRegex.exec(numStr);
+	if( m == null ) {
+		throw new Error("Failed to parse '"+numStr+"' as number");
+	}
+	let num = m[1];
+	let den = m[2];
+	if( den == null ) den = "1";
+	return +num / +den;
+}
+
 function makeVBit(degrees:number, pointSize:number):RouterBit {
 	const twiceSlope = Math.tan(degrees/2 * Math.PI/180);
 	return {
@@ -1110,10 +1127,13 @@ function makeVBit(degrees:number, pointSize:number):RouterBit {
 if( require.main == module ) {
 	let label = "TTSGCG";
 	let labelFontName = "tog-block-letters";
-	let bit:RouterBit = makeVBit(30, 0.05);
+	let bitTipSize = 0.05;
+	let bitAngle = 30;
 	let holeDepth = 1/8;
+	let holeDiameter = 5/32;
 	let labelDepth = 1/32;
-	let labelScale = 2.5/6;
+	let holeSpacing = 1/4; // Usually 1/2 is sufficient but why not do even better?!
+	let labelScale = 2.5/6; // Fits "TTSGCG" into 2.5 inches :P
 	let outlineDepth = 1/16;
 	let length = 1;
 	let labelDirection:LatOrLong = "lateral";
@@ -1128,6 +1148,15 @@ if( require.main == module ) {
 			outlineDepth = +m[1];
 		} else if( arg == "--no-holes" ) {
 			holeDepth = 0;
+		} else if( arg == '--holes-only' ) {
+			labelDepth = 0;
+			outlineDepth = 0;
+		} else if( arg == '--outline-only' ) {
+			labelDepth = 0;
+			holeDepth = 0;
+		} else if( arg == '--label-only' ) {
+			outlineDepth = 0;
+			holeDepth = 0;
 		} else if( (m = /^--hole-depth=(.*)$/.exec(arg)) ) {
 			holeDepth = +m[1];
 		} else if( (m = /^--label=(.*)$/.exec(arg)) ) {
@@ -1136,8 +1165,10 @@ if( require.main == module ) {
 			labelFontName = m[1];
 		} else if( (m = /^--label-direction=(longitudinal|lateral)$/.exec(arg)) ) {
 			labelDirection = <LatOrLong>m[1];
+		} else if( (m = /^--bit-diameter=(.+)$/.exec(arg)) ) {
+			bitTipSize = parseNumber(m[1]);
 		} else if( (m = /^--padding=(.*)$/.exec(arg)) ) {
-			padding = +m[1];
+			padding = parseNumber(m[1]);
 		} else if( arg == "--output-svg" ) {
 			outputMode = "svg";
 		} else {
@@ -1146,14 +1177,19 @@ if( require.main == module ) {
 		}
 	}
 
+	let bit:RouterBit = makeVBit(bitAngle, bitTipSize);
+
+
 	let job:Job = {
 		name: "TOGPanel",
 		offset: {x:0, y:0, z:0},
 		bit,
 		tasks: makeTogPanelTasks({
 			cornerStyle: "Round",
+			holeDiameter,
 			labelFontName,
 			holeDepth,
+			holeSpacing,
 			outlineDepth,
 			length,
 			label,
