@@ -174,12 +174,16 @@ interface MultiShape {
 	typeName:"MultiShape";
 	subShapes:Shape[];
 }
+interface Points {
+	typeName:"Points"
+	positions:Vector3D[];
+}
 interface RoundHoles {
 	typeName:"RoundHoles";
 	positions:Vector3D[];
 	diameter:number;
 }
-type Shape = TransformShape|MultiShape|Path|RoundHoles;
+type Shape = TransformShape|MultiShape|Path|RoundHoles|Points;
 
 //// Text
 
@@ -195,11 +199,16 @@ interface TextCharacter {
 	shape: Shape;
 }
 
-interface Charset {
+interface Font {
 	characters: {[char:string]: TextCharacter};
 }
 
-const togBlockLetters:Charset = (() => {
+const blockLetterBoundingBox:TextBoundingBox = {
+	leftX: -0.5, rightX: 0.5,
+	topX: 0.5, bottomX: -0.5,
+}
+
+const togBlockLetters:Font = (() => {
 	const aa =  0;
 	const ab =  1;
 	const ac =  2;
@@ -216,17 +225,13 @@ const togBlockLetters:Charset = (() => {
 	const db = 13;
 	const dc = 14;
 	const dd = 15;
-	const blockLetterBoundingBox:TextBoundingBox = {
-		leftX: -0.5, rightX: 0.5,
-		topX: 0.5, bottomX: -0.5,
-	}
-	const blockVertexes:Vector3D[] = [];
 	const outlinePath:Path = boxPath({
 		width: 1, height: 1, cornerOptions: {
 			cornerRadius: 1/8,
 			cornerStyleName: "Round"
 		}, centered: true
 	});
+	const blockVertexes:Vector3D[] = [];
 	for( let y=0; y<=3; ++y ) {
 		for( let x=0; x<=3; ++x ) {
 			blockVertexes.push({x: x / 3 - 0.5, y: 0.5 - y / 3, z:0});
@@ -289,7 +294,167 @@ const togBlockLetters:Charset = (() => {
 	}
 })();
 
-function textToShape(text:string, charset:Charset):Shape {
+const togLineLetters:Font = (() => {
+	const vertexes:Vector3D[] = [];
+	for( let y=0; y<5; ++y ) {
+		for( let x=0; x<5; ++x ) {
+			vertexes.push({x: (x+1)/6 - 0.5, y: 0.5 - (y+1)/6, z:0});
+		}
+	}
+
+	// Vertexes:
+	//
+	//   a b c d e
+	// a . . . . .
+	// b . . . . .
+	// c . . . . .
+	// d . . . . .
+	// e . . . . .
+
+	const aa =  0;
+	const ab =  1;
+	const ac =  2;
+	const ad =  3;
+	const ae =  4;
+	const ba =  5;
+	const bb =  6;
+	const bc =  7;
+	const bd =  8;
+	const be =  9;
+	const ca = 10;
+	const cb = 11;
+	const cc = 12;
+	const cd = 13;
+	const ce = 14;
+	const da = 15;
+	const db = 16;
+	const dc = 17;
+	const dd = 18;
+	const de = 19;
+	const ea = 20;
+	const eb = 21;
+	const ec = 22;
+	const ed = 23;
+	const ee = 24;
+	// Use between vertexes to indicate 'not just a straight line'
+	//const curve_left = 100;
+	const cleft = "curve-left";
+	const cright = "curve-right";
+	type PathOp = number|["curve-left"|"curve-right",number];
+
+	function mkblok(vertexLists:PathOp[][]):TextCharacter {
+		let shapes:Shape[] = [];
+		let points:Vector3D[] = [];
+		for( let vl in vertexLists ) {
+			let vertexList = vertexLists[vl];
+			let segments:PathSegment[] = [];
+			if( vertexList.length == 0 ) continue;
+			let firstOp = vertexList[0];
+			if( typeof(firstOp) !== "number" ) throw new Error("First item of vertex list must be a number");
+			if( vertexList.length == 1 ) {
+				points.push(vertexes[firstOp]);
+				continue;
+			}
+			let prevVertexIndex:number = firstOp;
+			let curveDirection:"left"|"right"|undefined;
+			let curveAxisVertexIndex:number|undefined = undefined;
+			for( let i=1; i<vertexList.length; ++i ) {
+				let op = vertexList[i];
+				if( typeof(op) == "number" ) {
+					let nextVertexIndex = op;
+					if( vertexes[prevVertexIndex] == undefined ) throw new Error("While building line letters, previous vertex index "+prevVertexIndex+" is invalid");
+					if( vertexes[nextVertexIndex] == undefined ) throw new Error("While building line letters, next vertex index "+nextVertexIndex+" is invalid");
+					if( curveAxisVertexIndex == undefined ) {
+						segments.push({
+							typeName: "StraightPathSegment",
+							startVertexIndex: prevVertexIndex,
+							endVertexIndex: nextVertexIndex
+						});
+					} else {
+						if( vertexes[curveAxisVertexIndex] == undefined ) throw new Error("While building line letters, axis vertex index "+curveAxisVertexIndex+" is invalid");
+						segments.push({
+							//typeName: curveDirection == "left" ? "CounterClockwisePathSegment" : "ClockwisePathSegment",
+							typeName: curveDirection == "right" ? "ClockwisePathSegment" : "CounterClockwisePathSegment",
+							startVertexIndex: prevVertexIndex,
+							endVertexIndex: nextVertexIndex,
+							axisVertexIndex: curveAxisVertexIndex
+						});
+					}
+					curveDirection = undefined;
+					curveAxisVertexIndex = undefined;
+					prevVertexIndex = nextVertexIndex;
+				} else if( op[0] == cleft ) {
+					curveDirection = "left";
+					curveAxisVertexIndex = op[1];
+				} else if( op[0] == cright ) {
+					curveDirection = "right";
+					curveAxisVertexIndex = op[1];
+				} else {
+					throw new Error("Bad path op: "+JSON.stringify(op));
+				}
+			}
+			shapes.push({
+				typeName:"Path",
+				vertexes,
+				segments
+			});
+		}
+		if( points.length > 0 ) {
+			shapes.push({
+				typeName: "Points",
+				positions: points
+			})
+		}
+		return {
+			box: blockLetterBoundingBox,
+			shape: {
+				typeName: "MultiShape",
+				subShapes: shapes
+			}
+		}
+	}
+	// Priotity letters:
+	// "TTSGCG"
+	// "WSITEM-[0..9]"
+	// "HEAT", "FAN", "AC", "COMM"
+	// ACEFGHIMNOSTW
+	return {
+		characters: {
+			"A": mkblok([[ea,ac,ec],[bc,bd]]),
+			"B": mkblok([[aa,ea,ed,[cleft,cd],cd,[cleft,bd], ad,aa],[ca,cd]]),
+			"C": mkblok([[ae,ac,[cleft,cc],ec,ee]]),
+			"E": mkblok([[ae,aa,ea,ee],[ca,ce]]),
+			"F": mkblok([[ae,aa,ea],[ca,ce]]),
+			"G": mkblok([[ae,ac,[cleft,cc],ec,ee,ce,cc]]),
+			"H": mkblok([[aa,ea],[ca,ce],[ae,ee]]),
+			"I": mkblok([[aa,ae],[ac,ec],[ea,ee]]),
+			"J": mkblok([[aa,ae],[ca,[cleft,cc],ce,ae]]),
+			"M": mkblok([[ea,aa,cc,ae,ee]]),
+			"N": mkblok([[ea,aa,ee,ae]]),
+			"O": mkblok([[ac,[cleft,cc],ac]]),
+			"S": mkblok([[ae,ab,[cleft,bb],cb,cd,[cright,dd],ed,ea]]),
+			"T": mkblok([[aa,ae],[ac,ec]]),
+			"-": mkblok([[ca,ce]]),
+			"0": mkblok([[ac,[cleft,cc],ac],[cc]]),
+			"1": mkblok([[ba,ac,ec],[ea,ee]]),
+			"2": mkblok([[aa,ad,[cright,bd],cd,cc,[cleft,ec],ea,ee]]),
+			"3": mkblok([[aa,ad,[cright,bd],cd,[cright,dd],ed,ea],[ca,cd]]),
+			"4": mkblok([[ed,ad,ca,ce]]),
+			"5": mkblok([[ae,aa,ca,cd,[cright,dd],ed,ea]]),
+		}
+	}
+})();
+
+function getFont(name:string):Font {
+	switch(name) {
+	case "tog-block-letters": return togBlockLetters;
+	case "tog-line-letters": return togLineLetters;
+	default:
+		throw new Error("No such font: "+name);
+	}
+}
+
+function textToShape(text:string, charset:Font):Shape {
 	let x = 0;
 	let chars:TextCharacter[] = [];
 	for( let i=0; i<text.length; ++i ) {
@@ -592,6 +757,8 @@ class GCodeGenerator {
 			});
 		case "Path":
 			return this.carvePath(shape, depth);
+		case "Points":
+			return this.carveHoles(shape.positions, 0, depth);
 		case "RoundHoles":
 			return this.carveHoles(shape.positions, shape.diameter, depth);
 		}
@@ -642,6 +809,7 @@ interface TOGPanelOptions {
 	outlineDepth: number;
 	holeDepth: number;
 	label: string|undefined;
+	labelFontName: string;
 	labelDepth: number;
 	labelScale: number;
 	labelDirection: LatOrLong;
@@ -649,6 +817,7 @@ interface TOGPanelOptions {
 
 function makeTogPanelTasks(options:TOGPanelOptions):Task[] {
 	let holeX = 0.25;
+	const labelFont = getFont(options.labelFontName);
 	let holePositions = [];
 	for( let x=0.25; x<options.length; x += 0.5 ) {
 		holePositions.push({x, y:0.25, z:0});
@@ -657,7 +826,7 @@ function makeTogPanelTasks(options:TOGPanelOptions):Task[] {
 		holePositions.push({x, y:3.25, z:0});
 	}
 	let label = options.label || "";
-	let labelShape = textToShape(label, togBlockLetters);
+	let labelShape = textToShape(label, labelFont);
 	let tasks:Task[] = [];
 	if( label.length > 0 && options.labelDepth > 0 ) {
 		let textPlacementTransform:TransformationMatrix3D;
@@ -716,6 +885,7 @@ function makeTogPanelTasks(options:TOGPanelOptions):Task[] {
 
 if( require.main == module ) {
 	let label = "TTSGCG";
+	let labelFontName = "tog-block-letters";
 	let holeDepth = 1/8;
 	let labelDepth = 1/32;
 	let labelScale = 2.5/6;
@@ -735,6 +905,8 @@ if( require.main == module ) {
 			holeDepth = +m[1];
 		} else if( (m = /^--label=(.*)$/.exec(arg)) ) {
 			label = m[1];
+		} else if( (m = /^--label-font=(.*)$/.exec(arg)) ) {
+			labelFontName = m[1];
 		} else if( (m = /^--label-direction=(longitudinal|lateral)$/.exec(arg)) ) {
 			labelDirection = <LatOrLong>m[1];
 		} else {
@@ -751,6 +923,7 @@ if( require.main == module ) {
 		offset: {x:0, y:0, z:0},
 		tasks: makeTogPanelTasks({
 			cornerStyle: "Round",
+			labelFontName,
 			holeDepth,
 			outlineDepth,
 			length,
