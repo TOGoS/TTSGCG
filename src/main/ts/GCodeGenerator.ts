@@ -1,3 +1,5 @@
+import * as aabb from './aabb';
+import { AABB3D } from './aabb';
 import * as vectormath from './vectormath';
 import { TransformationMatrix3D, Vector3D } from './vectormath';
 
@@ -533,21 +535,10 @@ interface RouterBit {
 	diameterFunction:(depth:number)=>number;
 }
 
-class GCodeGenerator {
-	public emitter:(s:string)=>string;
-	public transformation:TransformationMatrix3D;
-	public unit:DistanceUnit;
-	public zoomHeight:number = 1/4;
-	public minimumFastZ:number = 1/16;
-	public stepDown:number = 0.02;
-	public fractionDigits:number = 4;
-	public commentMode:"None"|"Parentheses"|"Semicolon" = "Parentheses";
-	protected _position = {x:0, y:0, z:0};
-	protected currentBit:RouterBit;
-	constructor() {
-		this.emitter = console.log.bind(console);
-		this.transformation = vectormath.createIdentityTransform();
-		this.unit = INCH;
+abstract class ShapeProcessorBase {
+	protected transformation:TransformationMatrix3D = vectormath.createIdentityTransform();
+	protected transformVector(vec:Vector3D):Vector3D {
+		return vectormath.transformVector(this.transformation, vec);
 	}
 	withTransform(xf:TransformationMatrix3D, callback:()=>void) {
 		let oldTransform = this.transformation;
@@ -563,15 +554,90 @@ class GCodeGenerator {
 		}
 		this.transformation = oldTransform;
 	}
-	protected transformVector(vec:Vector3D):Vector3D {
-		return vectormath.transformVector(this.transformation, vec);
+}
+
+class BoundsFinder extends ShapeProcessorBase {
+	public minX:number = Infinity;
+	public minY:number = Infinity;
+	public minZ:number = Infinity;
+	public maxX:number = -Infinity;
+	public maxY:number = -Infinity;
+	public maxZ:number = -Infinity;
+
+	processPoint(p:Vector3D):void {
+		this.minX = Math.min(this.minX, p.x);
+		this.minY = Math.min(this.minY, p.y);
+		this.minZ = Math.min(this.minZ, p.z);
+		this.maxX = Math.max(this.maxX, p.x);
+		this.maxY = Math.max(this.maxY, p.y);
+		this.maxZ = Math.max(this.maxZ, p.z);
 	}
-	protected updatePosition(x:number|undefined, y:number|undefined, z:number|undefined):void {
-		this._position = {
-			x: x == undefined ? this._position.x : x,
-			y: y == undefined ? this._position.y : y,
-			z: z == undefined ? this._position.z : z,
-		};
+	processPath(path:Path):void {
+		for( let s in path.segments ) {
+			let seg = path.segments[s];
+			this.processPoint(this.transformVector(path.vertexes[seg.startVertexIndex]));
+			this.processPoint(this.transformVector(path.vertexes[seg.endVertexIndex]));
+		}
+	}
+	processHoles(positions:Vector3D[], diameter:number) {
+		for( let p in positions ) {
+			this.processPoint(this.transformVector(positions[p]));
+		}
+	}
+
+	processShape(shape:Shape, depth:number) {
+		switch(shape.typeName) {
+		case "MultiShape":
+			for( let s in shape.subShapes ) {
+				this.processShape(shape.subShapes[s], depth);
+			}
+			return;
+		case "TransformShape":
+			return this.withTransform(shape.transformation, () => {
+				this.processShape(shape.subShape, depth);
+			});
+		case "Path":
+			return this.processPath(shape);
+		case "Points":
+			this.processHoles(shape.positions, 0);
+			break;
+		case "RoundHoles":
+			this.processHoles(shape.positions, shape.diameter);
+			return;
+		}
+	}
+
+	processTask(task:Task) {
+		switch(task.typeName) {
+		case "PathCarveTask":
+			for( let s in task.shapes ) this.processShape(task.shapes[s], task.depth);
+			break;
+		}
+	}
+
+	processJob(job:Job) {
+		for( let t in job.tasks ) {
+			this.withTransform(vectormath.translationToTransform(job.offset), () => {
+				this.processTask(job.tasks[t]);
+			});
+		}
+	}
+}
+
+class GCodeGenerator extends ShapeProcessorBase {
+	public emitter:(s:string)=>string;
+	public unit:DistanceUnit;
+	public zoomHeight:number = 1/4;
+	public minimumFastZ:number = 1/16;
+	public stepDown:number = 0.02;
+	public fractionDigits:number = 4;
+	public commentMode:"None"|"Parentheses"|"Semicolon" = "Parentheses";
+	protected _position = {x:0, y:0, z:0};
+	protected currentBit:RouterBit;
+	constructor() {
+		super();
+		this.emitter = console.log.bind(console);
+		this.unit = INCH;
 	}
 	emit(line:string):void {
 		this.emitter(line);
@@ -588,6 +654,13 @@ class GCodeGenerator {
 	}
 	emitBlock(lines:string[]):void {
 		for(let l in lines) this.emitter(lines[l]);
+	}
+	protected updatePosition(x:number|undefined, y:number|undefined, z:number|undefined):void {
+		this._position = {
+			x: x == undefined ? this._position.x : x,
+			y: y == undefined ? this._position.y : y,
+			z: z == undefined ? this._position.z : z,
+		};
 	}
 	doMove(command:string, x:number|undefined, y:number|undefined, z:number|undefined=undefined) {
 		if( x == undefined && y == undefined && z == undefined ) {
@@ -777,18 +850,18 @@ class GCodeGenerator {
 		}
 		this.g01(undefined, undefined, 0);
 	}
-	doTask(task:Task) {
+	processTask(task:Task) {
 		switch(task.typeName) {
 		case "PathCarveTask": return this.doPathCarveTask(task);
 		}
 	}
-	doJob(job:Job):void {
+	processJob(job:Job):void {
 		this.currentBit = job.bit;
 		this.emitBlankLine();
 		this.emitComment("Job: "+job.name);
 		this.withTransform(vectormath.translationToTransform(job.offset), () => {
 			for( let p in job.tasks ) {
-				this.doTask(job.tasks[p]);
+				this.processTask(job.tasks[p]);
 			}
 		});
 	}
@@ -803,31 +876,19 @@ function htmlEscape(text:string) {
 		.replace(/'/g, "&#039;");
 }
 
-class SVGGenerator {
+class SVGGenerator extends ShapeProcessorBase {
 	public emitter:(s:string)=>string;
 	protected bottomColor = "black";
 	protected cutColor = "gray";
 
 	// Updated as jobs/tasks are processed
 	protected routerBit:RouterBit;
-	protected transformation:TransformationMatrix3D;
 	protected strokeColor = "purple";
 	protected strokeWidth:number = 0;
 
 	constructor() {
+		super();
 		this.emitter = console.log.bind(console);
-		this.transformation = vectormath.createIdentityTransform();
-	}
-
-	withTransform(xf:TransformationMatrix3D, callback:()=>void) {
-		let oldTransform = this.transformation;
-		this.transformation = vectormath.multiplyTransform(oldTransform, xf);
-		callback();
-		this.transformation = oldTransform;
-	}
-
-	protected transformVector(vec:Vector3D):Vector3D {
-		return vectormath.transformVector(this.transformation, vec);
 	}
 
 	openElement(name:string, attrs:{[k:string]: string|number}={}, close:boolean=false) {
@@ -890,16 +951,16 @@ class SVGGenerator {
 		}
 	}
 
-	emitShape(shape:Shape) {
+	processShape(shape:Shape) {
 		switch(shape.typeName) {
 		case "MultiShape":
 			for( let s in shape.subShapes ) {
-				this.emitShape(shape.subShapes[s]);
+				this.processShape(shape.subShapes[s]);
 			}
 			return;
 		case "TransformShape":
 			return this.withTransform(shape.transformation, () => {
-				this.emitShape(shape.subShape);
+				this.processShape(shape.subShape);
 			});
 		case "Path":
 			return this.emitPath(shape);
@@ -912,7 +973,7 @@ class SVGGenerator {
 		}
 	}
 
-	emitTask(task:Task) {
+	processTask(task:Task) {
 		switch(task.typeName) {
 		case "PathCarveTask":
 			const cutTopWidth    = this.routerBit.diameterFunction(task.depth);
@@ -920,26 +981,25 @@ class SVGGenerator {
 			if( cutTopWidth > cutBottomWidth ) {
 				this.strokeWidth = cutTopWidth;
 				this.strokeColor = this.cutColor;
-				for( let s in task.shapes ) this.emitShape(task.shapes[s]);
+				for( let s in task.shapes ) this.processShape(task.shapes[s]);
 			}
 			this.strokeWidth = cutBottomWidth;
 			this.strokeColor = this.bottomColor;
-			for( let s in task.shapes ) this.emitShape(task.shapes[s]);
+			for( let s in task.shapes ) this.processShape(task.shapes[s]);
 			break;
 		}
 	}
 
-	emitJob(job:Job) {
+	processJob(job:Job):void {
 		this.routerBit = job.bit;
-		for( let t in job.tasks ) {
-			this.withTransform(vectormath.translationToTransform(job.offset), () => {
-				this.emitTask(job.tasks[t]);
-			});
-		}
-		this.closeElement("svg");
+		this.withTransform(vectormath.translationToTransform(job.offset), () => {
+			for( let t in job.tasks ) {
+				this.processTask(job.tasks[t]);
+			}
+		});
 	}
 
-	emitHeader(modelBounds:{minX:number,minY:number,maxX:number,maxY:number}) {
+	emitHeader(modelBounds:{minX:number,minY:number,maxX:number,maxY:number}):void {
 		const modelWidth = modelBounds.maxX - modelBounds.minX;
 		const modelHeight = modelBounds.maxY - modelBounds.minY;
 		this.emitter('<?xml version="1.0" standalone="no"?>\n');
@@ -949,6 +1009,10 @@ class SVGGenerator {
 			viewBox:modelBounds.minX+" "+modelBounds.minY+" "+modelWidth+" "+modelHeight,
 			transform:"scale(1,-1)"
 		});
+	}
+
+	emitFooter():void {
+		this.emitter("</svg>\n");
 	}
 }
 
@@ -1054,6 +1118,7 @@ if( require.main == module ) {
 	let length = 1;
 	let labelDirection:LatOrLong = "lateral";
 	let outputMode:"svg"|"gcode" = "gcode";
+	let padding:number = 0.5;
 	for( let i=2; i<process.argv.length; ++i ) {
 		let m;
 		let arg = process.argv[i];
@@ -1071,6 +1136,8 @@ if( require.main == module ) {
 			labelFontName = m[1];
 		} else if( (m = /^--label-direction=(longitudinal|lateral)$/.exec(arg)) ) {
 			labelDirection = <LatOrLong>m[1];
+		} else if( (m = /^--padding=(.*)$/.exec(arg)) ) {
+			padding = +m[1];
 		} else if( arg == "--output-svg" ) {
 			outputMode = "svg";
 		} else {
@@ -1101,18 +1168,17 @@ if( require.main == module ) {
 		let gcg = new GCodeGenerator();
 		gcg.commentMode = "None";
 		gcg.emitSetupCode();
-		gcg.doJob(job);
+		gcg.processJob(job);
 		gcg.emitShutdownCode();
 		break;
 	case "svg":
+		let bf = new BoundsFinder();
+		bf.processJob(job);
+		let padded = aabb.pad(bf, padding);
 		let sg = new SVGGenerator();
-		let thingWidth = 1;
-		let thingHeight = 3.5;
-		sg.emitHeader({
-			minX: -0.5, minY: -0.5,
-			maxX: 1.5, maxY: 4.0,
-		})
-		sg.emitJob(job);
+		sg.emitHeader(padded);
+		sg.processJob(job);
+		sg.emitFooter();
 		break;
 	}
 }
