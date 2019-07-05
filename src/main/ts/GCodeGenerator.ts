@@ -506,6 +506,7 @@ class GCodeGenerator {
 			endVertexIndex   = segment.startVertexIndex;
 		}
 		let startVertex = this.transformVector(path.vertexes[startVertexIndex]);
+		// TODO: Check that startVertex is where we already are???
 		let endVertex = this.transformVector(path.vertexes[endVertexIndex]);
 		// Theoretically path vertexes could have depth.  I'm ignoring that for now.
 		if(segment.typeName == "StraightPathSegment") {
@@ -520,7 +521,7 @@ class GCodeGenerator {
 			let j = curveCenterVertex.y - startVertex.y;
 			let k = curveCenterVertex.z - startVertex.z;
 			let angle = direction * (segment.typeName == "CounterClockwisePathSegment" ? 1 : -1)
-			this.doCurve(direction > 0 ? "G03" : "G02", endVertex.x, endVertex.y, undefined, i, j, k);
+			this.doCurve(angle > 0 ? "G03" : "G02", endVertex.x, endVertex.y, undefined, i, j, k);
 		}
 	}
 	carvePath(path:Path, depth:number):void {
