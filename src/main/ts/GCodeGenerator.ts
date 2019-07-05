@@ -510,16 +510,7 @@ interface PathCarveTask
 	depth:number;
 }
 
-/** @deprecated; just use RoundHole shapes instead */
-interface HoleDrillTask
-{
-	typeName:"HoleDrillTask";
-	positions:Vector3D[];
-	diameter:number;
-	depth:number;
-}
-
-type Task = PathCarveTask|HoleDrillTask;
+type Task = PathCarveTask;
 
 /**
  * A job is a bunch of stuff that the machine should be able to do all at once.
@@ -780,13 +771,9 @@ class GCodeGenerator {
 		}
 		this.g01(undefined, undefined, 0);
 	}
-	doHoleDrillTask(task:HoleDrillTask) {
-		return this.carveHoles(task.positions, task.diameter, task.depth);
-	}
 	doTask(task:Task) {
 		switch(task.typeName) {
 		case "PathCarveTask": return this.doPathCarveTask(task);
-		case "HoleDrillTask": return this.doHoleDrillTask(task);
 		}
 	}
 	doJob(job:Job):void {
