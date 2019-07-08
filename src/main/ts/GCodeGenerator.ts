@@ -1124,12 +1124,20 @@ function makeVBit(degrees:number, pointSize:number):RouterBit {
 	}
 }
 
-function shapeMmToInch(shape:Shape):Shape {
+function transformShape(xf:TransformationMatrix3D, shape:Shape):Shape {
 	return {
 		typeName: "TransformShape",
-		transformation: vectormath.scaleToTransform(1/25.4),
+		transformation: xf,
 		subShape: shape
 	}
+}
+
+function shapeMmToInch(shape:Shape):Shape {
+	return transformShape(vectormath.scaleToTransform(1/25.4), shape)
+}
+
+function translateShape(shape:Shape, offset:Vector3D):Shape {
+	return transformShape(vectormath.translationToTransform(offset), shape)
 }
 
 // Parts for router:
@@ -1141,7 +1149,8 @@ function makePart200027Tasks():Task[] {
 	// 40cm tall
 	// stickey outey part (1.5cm wide) in middle 2cm
 	// Center line would be at y = 2dm
-	const panelThickness = 1/8;
+	const panelThickness = 1/8; // inches
+	const mountingHoleSpacing = 9.5; // mm
 	let pb:PathBuilder = new PathBuilder({x:0,y:0,z:0});
 	pb.lineTo({x:10,y: 0,z:0}).lineTo({x:10,y: 0,z:0}).lineTo({x:10,y:10,z:0})
 	  .lineTo({x:15,y:10,z:0}).lineTo({x:15,y:30,z:0}).lineTo({x:10,y:30,z:0})
@@ -1149,17 +1158,19 @@ function makePart200027Tasks():Task[] {
 	let pokeyHolePositions:Vector3D[] = [];
 	for( let phRow=0; phRow<=1; ++phRow ) {
 		for( let phX=1.5; phX<15; phX += 2 ) {
-			pokeyHolePositions.push({x:phX, y:20+(phRow-0.5)*10, z:0})
+			pokeyHolePositions.push({x:phX, y:20+(phRow-0.5)*mountingHoleSpacing, z:0})
 		}
 	}
 	return [
 		{
 			typeName: "PathCarveTask",
 			depth: 1/25.4,
-			shapes: [shapeMmToInch({
-				typeName: "Points",
-				positions: pokeyHolePositions
-			})]
+			shapes: [
+				shapeMmToInch({
+					typeName: "Points",
+					positions: pokeyHolePositions
+				}),
+			]
 		},
 		{
 			typeName: "PathCarveTask",
