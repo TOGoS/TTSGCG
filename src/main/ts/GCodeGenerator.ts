@@ -1124,6 +1124,51 @@ function makeVBit(degrees:number, pointSize:number):RouterBit {
 	}
 }
 
+function shapeMmToInch(shape:Shape):Shape {
+	return {
+		typeName: "TransformShape",
+		transformation: vectormath.scaleToTransform(1/25.4),
+		subShape: shape
+	}
+}
+
+// Parts for router:
+// WSTYPE-200027 = over thingy
+// WSTYPE-200028 = under thingy
+// WSTYPE-200029 = ???
+function makePart200027Tasks():Task[] {
+	// 1cm wide
+	// 40cm tall
+	// stickey outey part (1.5cm wide) in middle 2cm
+	// Center line would be at y = 2dm
+	const panelThickness = 1/8;
+	let pb:PathBuilder = new PathBuilder({x:0,y:0,z:0});
+	pb.lineTo({x:10,y: 0,z:0}).lineTo({x:10,y: 0,z:0}).lineTo({x:10,y:10,z:0})
+	  .lineTo({x:15,y:10,z:0}).lineTo({x:15,y:30,z:0}).lineTo({x:10,y:30,z:0})
+	  .lineTo({x:10,y:40,z:0}).lineTo({x: 0,y:40,z:0}).closeLoop();
+	let pokeyHolePositions:Vector3D[] = [];
+	for( let phRow=0; phRow<=1; ++phRow ) {
+		for( let phX=1.5; phX<15; phX += 2 ) {
+			pokeyHolePositions.push({x:phX, y:20+(phRow-0.5)*10, z:0})
+		}
+	}
+	return [
+		{
+			typeName: "PathCarveTask",
+			depth: 1/25.4,
+			shapes: [shapeMmToInch({
+				typeName: "Points",
+				positions: pokeyHolePositions
+			})]
+		},
+		{
+			typeName: "PathCarveTask",
+			depth: panelThickness,
+			shapes: [shapeMmToInch(pb.path)]
+		}
+	];
+}
+
 if( require.main == module ) {
 	let label = "TTSGCG";
 	let labelFontName = "tog-block-letters";
@@ -1139,6 +1184,7 @@ if( require.main == module ) {
 	let labelDirection:LatOrLong = "lateral";
 	let outputMode:"svg"|"gcode" = "gcode";
 	let padding:number = 0.5;
+	let jobTypeName:string = "togpanel"
 	for( let i=2; i<process.argv.length; ++i ) {
 		let m;
 		let arg = process.argv[i];
@@ -1171,6 +1217,8 @@ if( require.main == module ) {
 			padding = parseNumber(m[1]);
 		} else if( arg == "--output-svg" ) {
 			outputMode = "svg";
+		} else if( (m = /^--job=(.*)/.exec(arg)) ) {
+			jobTypeName = m[1];
 		} else {
 			console.error("Unrecognized argument: "+arg);
 			process.exit(1);
@@ -1179,24 +1227,35 @@ if( require.main == module ) {
 
 	let bit:RouterBit = makeVBit(bitAngle, bitTipSize);
 
-
-	let job:Job = {
-		name: "TOGPanel",
-		offset: {x:0, y:0, z:0},
-		bit,
-		tasks: makeTogPanelTasks({
-			cornerStyle: "Round",
-			holeDiameter,
-			labelFontName,
-			holeDepth,
-			holeSpacing,
-			outlineDepth,
-			length,
-			label,
-			labelDepth,
-			labelScale,
-			labelDirection,
-		})
+	let job:Job;
+	if( jobTypeName == "togpanel" ) {
+		job = {
+			name: "TOGPanel",
+			offset: {x:0, y:0, z:0},
+			bit,
+			tasks: makeTogPanelTasks({
+				cornerStyle: "Round",
+				holeDiameter,
+				labelFontName,
+				holeDepth,
+				holeSpacing,
+				outlineDepth,
+				length,
+				label,
+				labelDepth,
+				labelScale,
+				labelDirection,
+			})
+		}
+	} else if( jobTypeName == "wstype-200027" ) {
+		job = {
+			name: "WSTYPE-200027",
+			offset: {x:0, y:0, z:0},
+			bit,
+			tasks: makePart200027Tasks()
+		}
+	} else {
+		throw new Error("Unrecognized job type name "+jobTypeName);
 	}
 
 	switch( outputMode ) {
