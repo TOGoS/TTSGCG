@@ -135,17 +135,26 @@ const quarterTurn = Math.PI/2;
 const eighthTurnAngle = Math.PI/4;
 
 interface BoxOptions {
+	cx?:number;
+	cy?:number;
+	x0?:number;
+	y0?:number;
 	width:number;
 	height:number;
 	cornerOptions:CornerOptions;
-	centered:boolean;
+}
+
+function figureEdge(x0:number|undefined, cx:number|undefined, width:number, varName:string):number {
+	if( x0 != undefined ) return x0;
+	if( cx != undefined ) return cx - width/2;
+	throw new Error("Either '"+varName+"0' or 'c"+varName+"' must be specified for box");
 }
 
 function boxPath(boxOptions:BoxOptions) {
 	const w = boxOptions.width;
 	const h = boxOptions.height;
-	let x0 = boxOptions.centered ? 0-w/2 : 0;
-	let y0 = boxOptions.centered ? 0-h/2 : 0;
+	const x0 = figureEdge(boxOptions.x0, boxOptions.cx, boxOptions.width, "x");
+	const y0 = figureEdge(boxOptions.y0, boxOptions.cy, boxOptions.height, "y");
 	const c = boxOptions.cornerOptions.cornerRadius;
 	const cs = boxOptions.cornerOptions.cornerStyleName;
 	let pb = new PathBuilder({x:x0+c, y:y0+0, z:0});
@@ -228,10 +237,10 @@ const togBlockLetters:Font = (() => {
 	const dc = 14;
 	const dd = 15;
 	const outlinePath:Path = boxPath({
-		width: 1, height: 1, cornerOptions: {
+		cx:0, cy:0, width: 1, height: 1, cornerOptions: {
 			cornerRadius: 1/8,
 			cornerStyleName: "Round"
-		}, centered: true
+		}
 	});
 	const blockVertexes:Vector3D[] = [];
 	for( let y=0; y<=3; ++y ) {
@@ -487,22 +496,37 @@ function textToShape(text:string, charset:Font):Shape {
 ////
 
 interface DistanceUnit {
-	name : string;
 	gCode : string;
 	unitValueInMm : number;
+	names : string[];
 };
 
 const INCH : DistanceUnit = {
-	name:"inch",
 	gCode:"G20",
-	unitValueInMm:2.54
+	unitValueInMm:2.54,
+	names: ["inch", "in", '"', "inch", "inches"],
 };
 
 const MM : DistanceUnit = {
-	name:"mm",
 	gCode:"G21",
 	unitValueInMm:1,
+	names: ["millimeter", "mm", "millimeters"],
 };
+
+const distanceUnits:{[k:string]:DistanceUnit} = {
+	"in": INCH,
+	"millimeter": MM,
+}
+
+function getDistanceUnit(name:string):DistanceUnit {
+	for( let du in distanceUnits ) {
+		let distanceUnit = distanceUnits[du];
+		for( let a in distanceUnit.names ) {
+			if( distanceUnit.names[a] == name ) return distanceUnit;
+		}
+	}
+	throw new Error("No such distance unit as '"+name+"'");
+}
 
 /** Carve 2D shapes at a single depth */
 interface PathCarveTask
@@ -801,13 +825,13 @@ class GCodeGenerator extends ShapeProcessorBase {
 	carveHoles(positions:Vector3D[], diameter:number, depth:number) {
 		let circleRadius = diameter/2 - this.currentBit.diameterFunction(0)/2;
 		if( circleRadius <= 0 ) {
-			this.emitComment(diameter + this.unit.name + " hole will be a banger");
+			this.emitComment(diameter + this.unit.names[1] + " hole will be a banger");
 			for( let p in positions ) {
 				this.zoomTo(positions[p]);
 				this.bangHole(depth, this.stepDown, this.stepDown/2);
 			}
 		} else {
-			this.emitComment(diameter + this.unit.name + " hole will be circles");
+			this.emitComment(diameter + this.unit.names[1] + " hole will be circles");
 			const path = circlePath(circleRadius);
 			this.forEachOffset(positions, () => {
 				this.carvePath(path, depth);
@@ -1093,9 +1117,9 @@ function makeTogPanelTasks(options:TOGPanelOptions):Task[] {
 			depth: options.outlineDepth,
 			shapes: [
 				boxPath({
+					x0: 0, y0: 0,
 					width: options.length, height: 3.5,
 					cornerOptions: { cornerRadius: 0.25, cornerStyleName: "Round" },
-					centered: false
 				})
 			]
 		});
@@ -1114,6 +1138,19 @@ function parseNumber(numStr:string):number {
 	let den = m[2];
 	if( den == null ) den = "1";
 	return +num / +den;
+}
+
+const numberWithUnitRegex =  /^([+-]?\d+(?:\.\d+)?(?:\/(\d+))?)(\D.*)$/;
+
+function parseDistance(str:string):number {
+	let m = numberWithUnitRegex.exec(str);
+	if( m == null ) {
+		throw new Error("Failed to parse '"+str+"' as distance; maybe you need tot add units?")
+	}
+	let v = parseNumber(m[1]+m[2]);
+	let u = getDistanceUnit(m[3]);
+	if( u == INCH ) return v;
+	return v * u.unitValueInMm / 25.4;
 }
 
 function makeVBit(degrees:number, pointSize:number):RouterBit {
@@ -1180,7 +1217,66 @@ function makePart200027Tasks():Task[] {
 	];
 }
 
+function makePart200028Tasks():Task[] {
+	const panelThickness = 1/8;
+	const panelWidth = 20 / 25.4;
+	const panelLength = 30 / 25.4;
+	const mountingHoleSpacing = 9.5 / 25.4;
+	let pokeyHolePositions:Vector3D[] = [];
+	for( let phRow=0; phRow<=1; ++phRow ) {
+		for( let phY=2; phY < panelLength * 25.4; phY += 2) {
+			pokeyHolePositions.push({x:panelWidth/2 + (phRow-0.5)*mountingHoleSpacing, y:phY / 25.4, z:0})
+		}
+	}
+	return [
+		{
+			typeName: "PathCarveTask",
+			depth: 1/25.4,
+			shapes: [
+				{
+					typeName: "Points",
+					positions: pokeyHolePositions
+				},
+			]
+		},
+		{
+			typeName: "PathCarveTask",
+			depth: panelThickness,
+			shapes: [
+				boxPath({
+					cx: panelWidth/2,
+					cy: panelLength/2,
+					width: 8 / 25.4,
+					height: panelLength - 10 / 25.4,
+					cornerOptions: {
+						cornerRadius: 4 / 25.4,
+						cornerStyleName: "Round"
+					}
+				}),
+				boxPath({
+					x0: 0, y0: 0,
+					width: panelWidth,
+					height: panelLength,
+					cornerOptions: {
+						cornerRadius: 1/8,
+						cornerStyleName: "Round"
+					}
+				})
+			]
+		}
+	];
+}
+
+interface JobProcessor {
+	processJob(job:Job):void;
+}
+
+function processJobs(processor:JobProcessor, jobs:Job[]) {
+	for( let j in jobs ) processor.processJob(jobs[j]);
+}
+
 if( require.main == module ) {
+	let jobs:Job[] = [];
 	let label = "TTSGCG";
 	let labelFontName = "tog-block-letters";
 	let bitTipSize = 0.05;
@@ -1193,9 +1289,18 @@ if( require.main == module ) {
 	let outlineDepth = 1/16;
 	let length = 1;
 	let labelDirection:LatOrLong = "lateral";
-	let outputMode:"svg"|"gcode" = "gcode";
+	let outputMode:"svg"|"gcode"|"bounds" = "gcode";
 	let padding:number = 0.5;
-	let jobTypeName:string = "togpanel"
+	let offset:Vector3D = {x:0, y:0, z:0};
+
+	const makeBit = function() {
+		return makeVBit(bitAngle, bitTipSize);
+	}
+
+	const empty = function(s:string|undefined):boolean {
+		return s == undefined || s.length == 0;
+	}
+
 	for( let i=2; i<process.argv.length; ++i ) {
 		let m;
 		let arg = process.argv[i];
@@ -1214,6 +1319,11 @@ if( require.main == module ) {
 		} else if( arg == '--label-only' ) {
 			outlineDepth = 0;
 			holeDepth = 0;
+		} else if( (m = /^--offset=([^,]*),([^,]*),([^,]*)$/.exec(arg)) ) {
+			offset = {x:offset.x, y:offset.y, z:offset.z};
+			if( !empty(m[1]) ) offset.x = parseDistance(m[1]);
+			if( !empty(m[2]) ) offset.y = parseDistance(m[2]);
+			if( !empty(m[3]) ) offset.z = parseDistance(m[3]);
 		} else if( (m = /^--hole-depth=(.*)$/.exec(arg)) ) {
 			holeDepth = +m[1];
 		} else if( (m = /^--label=(.*)$/.exec(arg)) ) {
@@ -1226,64 +1336,73 @@ if( require.main == module ) {
 			bitTipSize = parseNumber(m[1]);
 		} else if( (m = /^--padding=(.*)$/.exec(arg)) ) {
 			padding = parseNumber(m[1]);
+		} else if( arg == "--output-bounds" ) {
+			outputMode = "bounds";
+		} else if( arg == "--output-gcode" ) {
+			outputMode = "gcode";
 		} else if( arg == "--output-svg" ) {
 			outputMode = "svg";
-		} else if( (m = /^--job=(.*)/.exec(arg)) ) {
-			jobTypeName = m[1];
+		} else if( arg == '--tog-panel' ) {
+			jobs.push({
+				name: "TOGPanel",
+				offset,
+				bit: makeBit(),
+				tasks: makeTogPanelTasks({
+					cornerStyle: "Round",
+					holeDiameter,
+					labelFontName,
+					holeDepth,
+					holeSpacing,
+					outlineDepth,
+					length,
+					label,
+					labelDepth,
+					labelScale,
+					labelDirection,
+				})
+			});
+		} else if( arg == '--wstype-200027' ) {
+			jobs.push({
+				name: "WSTYPE-200027",
+				offset,
+				bit: makeBit(),
+				tasks: makePart200027Tasks()
+			});
+		} else if( arg == '--wstype-200028' ) {
+			jobs.push({
+				name: "WSTYPE-200028",
+				offset,
+				bit: makeBit(),
+				tasks: makePart200028Tasks()
+			});
 		} else {
 			console.error("Unrecognized argument: "+arg);
 			process.exit(1);
 		}
 	}
 
-	let bit:RouterBit = makeVBit(bitAngle, bitTipSize);
 
-	let job:Job;
-	if( jobTypeName == "togpanel" ) {
-		job = {
-			name: "TOGPanel",
-			offset: {x:0, y:0, z:0},
-			bit,
-			tasks: makeTogPanelTasks({
-				cornerStyle: "Round",
-				holeDiameter,
-				labelFontName,
-				holeDepth,
-				holeSpacing,
-				outlineDepth,
-				length,
-				label,
-				labelDepth,
-				labelScale,
-				labelDirection,
-			})
-		}
-	} else if( jobTypeName == "wstype-200027" ) {
-		job = {
-			name: "WSTYPE-200027",
-			offset: {x:0, y:0, z:0},
-			bit,
-			tasks: makePart200027Tasks()
-		}
-	} else {
-		throw new Error("Unrecognized job type name "+jobTypeName);
-	}
+	let bf = new BoundsFinder();
+	processJobs(bf, jobs);
 
 	switch( outputMode ) {
+	case "bounds":
+		console.log("x: "+bf.minX +".."+bf.maxX);
+		console.log("y: "+bf.minY +".."+bf.maxY);
+		console.log("z: "+bf.minZ +".."+bf.maxZ);
+		break;
 	case "gcode":
 		let gcg = new GCodeGenerator();
 		gcg.commentMode = "None";
 		gcg.emitSetupCode();
-		gcg.processJob(job);
+		processJobs(gcg, jobs);
 		gcg.emitShutdownCode();
 		break;
 	case "svg":
-		let bf = new BoundsFinder();
-		bf.processJob(job);
 		let padded = aabb.pad(bf, padding);
 		let sg = new SVGGenerator();
 		sg.emitHeader(padded);
-		sg.processJob(job);
+		processJobs(sg, jobs);
 		sg.emitFooter();
 		break;
 	}
