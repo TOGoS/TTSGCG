@@ -1,6 +1,14 @@
 *** DONE Make a small panel with "TTSGCG" on it and stick that in here to have an attractive README
 *** TODO Publish as an NPM package
 *** DONE Holes should be a shape instead of a separate task type
+*** TODO Tool radius compensation
+
+GRBL doesn't support G41/G42.  So I should emulate it.
+Maybe with a 'Outline' shape that is defined in terms of another shape and whether to carve to the left or right.
+- It's more than just shifting the path outwards, because there might be points where lines come together
+  that you need to avoid.
+- Maybe shift lines outwards and stop at any intersections and skip to the line that was intersected with.
+
 *** TODO Carved character set
 *** TODO Add option to generate SVG or draw to a <canvas> instead of G-code
 *** TODO Carve from a heightmap
