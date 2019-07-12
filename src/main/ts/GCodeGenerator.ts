@@ -949,7 +949,7 @@ if( require.main == module ) {
 	let outputMode:"svg"|"gcode"|"bounds" = "gcode";
 	let padding:ComplexAmount = inches(0.5);
 	let offset:Vector3D = {x:0, y:0, z:0};
-	let nativeUnit = INCH;
+	let nativeUnit:DistanceUnit = MM;
 
 	const makeBit = function() {
 		return makeVBit(bitAngle, bitTipSize);
