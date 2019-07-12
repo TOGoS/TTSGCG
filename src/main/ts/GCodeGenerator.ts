@@ -922,6 +922,67 @@ function makePart200028Tasks():Task[] {
 	];
 }
 
+function makePart200029Tasks():Task[] {
+	const panelWidth = 20;
+	const panelHeight = 60;
+	const mountingHoleSpacing = 9.5;
+	let pokeyHolePositions:Vector3D[] = [];
+	for( let phRow=0; phRow<=1; ++phRow ) {
+		for( let phX=2; phX < panelWidth; phX += 2) {
+			pokeyHolePositions.push({x:phX, y:panelHeight/2 + (phRow-0.5)*mountingHoleSpacing, z:0})
+		}
+	}
+	return [
+		{
+			typeName: "PathCarveTask",
+			depth: millimeters(1),
+			shapeUnitName: "millimeter",
+			shapes: [
+				{
+					typeName: "Points",
+					positions: pokeyHolePositions
+				},
+			]
+		},
+		{
+			typeName: "PathCarveTask",
+			depth: throughDepth,
+			shapeUnitName: "millimeter",
+			shapes: [
+				boxPath({
+					cx: panelWidth/2,
+					cy: 10,
+					width: panelWidth - 10,
+					height: 8,
+					cornerOptions: {
+						cornerRadius: 4,
+						cornerStyleName: "Round"
+					}
+				}),
+				boxPath({
+					cx: panelWidth/2,
+					cy: 50,
+					width: panelWidth - 10,
+					height: 8,
+					cornerOptions: {
+						cornerRadius: 4,
+						cornerStyleName: "Round"
+					}
+				}),
+				boxPath({
+					x0: 0, y0: 0,
+					width: panelWidth,
+					height: panelHeight,
+					cornerOptions: {
+						cornerRadius: 3,
+						cornerStyleName: "Round"
+					}
+				})
+			]
+		}
+	];
+}
+
 interface JobProcessor {
 	processJob(job:Job):void;
 }
@@ -1035,6 +1096,12 @@ if( require.main == module ) {
 				name: "WSTYPE-200028",
 				offset,
 				tasks: makePart200028Tasks()
+			});
+		} else if( arg == '--wstype-200029' ) {
+			jobs.push({
+				name: "WSTYPE-200028",
+				offset,
+				tasks: makePart200029Tasks()
 			});
 		} else {
 			console.error("Unrecognized argument: "+arg);
