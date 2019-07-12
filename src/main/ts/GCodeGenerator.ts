@@ -7,6 +7,7 @@ import { Shape, Path, PathSegment } from './shapes';
 import { CornerStyleName, PathBuilder, boxPath, circlePath, quarterTurn } from './pathutils';
 import { textToShape } from './text';
 import { getFont } from './fonts';
+import { decode } from 'punycode';
 
 function vectorToString(v:Vector3D, digits=4):string {
 	return "<"+v.x.toFixed(digits)+","+v.y.toFixed(digits)+","+v.z.toFixed(digits)+">";
@@ -15,44 +16,76 @@ function vectorToString(v:Vector3D, digits=4):string {
 ////
 
 interface DistanceUnit {
-	gCode : string;
 	unitValueInMm : number;
-	names : string[];
+	name : string;
+	abbreviation : string;
+	aliases : string[];
 };
 
 const INCH : DistanceUnit = {
-	gCode:"G20",
-	unitValueInMm:2.54,
-	names: ["inch", "in", '"', "inch", "inches"],
+	unitValueInMm: 25.4,
+	name: "inch",
+	abbreviation: "in",
+	aliases: ["inch", "in", '"', "inch", "inches"],
 };
 
 const MM : DistanceUnit = {
-	gCode:"G21",
-	unitValueInMm:1,
-	names: ["millimeter", "mm", "millimeters"],
+	unitValueInMm: 1,
+	name: "millimeter",
+	abbreviation: "mm",
+	aliases: ["millimeter", "mm", "millimeters"],
 };
 
 const distanceUnits:{[k:string]:DistanceUnit} = {
-	"in": INCH,
+	"inch": INCH,
 	"millimeter": MM,
 }
 
-function getDistanceUnit(name:string):DistanceUnit {
+function findDistanceUnit(name:string):DistanceUnit|undefined {
 	for( let du in distanceUnits ) {
 		let distanceUnit = distanceUnits[du];
-		for( let a in distanceUnit.names ) {
-			if( distanceUnit.names[a] == name ) return distanceUnit;
+		for( let a in distanceUnit.aliases ) {
+			if( distanceUnit.aliases[a] == name ) return distanceUnit;
 		}
 	}
-	throw new Error("No such distance unit as '"+name+"'");
+	return undefined;
 }
+
+function getDistanceUnit(name:string):DistanceUnit {
+	let u = findDistanceUnit(name);
+	if( u == undefined ) throw new Error("No such distance unit as '"+name+"'");
+	return u;
+}
+
+type DistanceUnitName = "inch"|"millimeter"|"board";
+interface RationalNumber {
+	numerator: number;
+	denominator: number;
+}
+type ComplexAmount = {[unitName:string]: RationalNumber};
+
+const throughDepth:ComplexAmount = {"board":{numerator:1,denominator:1}};
+
+function amount(unitName:string, numerator:number, denominator:number=1):ComplexAmount {
+	return { [unitName]: {numerator, denominator} };
+}
+function inches(numerator:number, denominator:number=1):ComplexAmount {
+	return amount("inch", numerator, denominator);
+}
+function millimeters(numerator:number, denominator:number=1):ComplexAmount {
+	return amount("millimeter", numerator, denominator);
+}
+
+
+
 
 /** Carve 2D shapes at a single depth */
 interface PathCarveTask
 {
-	typeName:"PathCarveTask";
-	shapes:Shape[];
-	depth:number;
+	typeName: "PathCarveTask";
+	shapeUnitName: DistanceUnitName;
+	shapes: Shape[];
+	depth: ComplexAmount;
 }
 
 type Task = PathCarveTask;
@@ -64,7 +97,6 @@ type Task = PathCarveTask;
 interface Job
 {
 	name:string;
-	bit:RouterBit;
 	offset:Vector3D;
 	tasks:Task[];
 }
@@ -75,11 +107,38 @@ function assertUnreachable(n:never) {
 
 interface RouterBit {
 	name:string;
-	diameterFunction:(depth:number)=>number;
+	diameterFunction:(depth:ComplexAmount)=>ComplexAmount;
+}
+
+function decodeComplexAmount(amount:ComplexAmount, nativeUnit:DistanceUnit, unitTranslations:{[k:string]: ComplexAmount}={}):number {
+	let total = 0;
+	for( let unitName in amount ) {
+		if( unitTranslations[unitName] ) {
+			total += amount[unitName].numerator * decodeComplexAmount(unitTranslations[unitName], nativeUnit) / amount[unitName].denominator;
+		} else if( unitName == nativeUnit.name ) {
+			total += amount[unitName].numerator / amount[unitName].denominator;
+		} else {
+			let unit = distanceUnits[unitName];
+			if( unit == undefined ) {
+				throw new Error("Invalid unit "+unitName);
+			}
+			let mmValue = unit.unitValueInMm * amount[unitName].numerator / amount[unitName].denominator;
+			total += mmValue / nativeUnit.unitValueInMm;
+		}
+	}
+	return total;
+
+}
+
+interface JobContext {
+	nativeUnit: DistanceUnit;
+	workpieceThickness: ComplexAmount;
+	routerBit: RouterBit;
 }
 
 abstract class ShapeProcessorBase {
 	protected transformation:TransformationMatrix3D = vectormath.createIdentityTransform();
+	constructor(protected jobContext:JobContext) {}
 	protected transformVector(vec:Vector3D):Vector3D {
 		return vectormath.transformVector(this.transformation, vec);
 	}
@@ -89,6 +148,10 @@ abstract class ShapeProcessorBase {
 		callback();
 		this.transformation = oldTransform;
 	}
+	withShapeUnit(unit:DistanceUnit, callback:()=>void) {
+		let scale = unit.unitValueInMm / this.jobContext.nativeUnit.unitValueInMm;
+		this.withTransform(vectormath.scaleToTransform(scale), callback);
+	}
 	forEachOffset(offsets:Vector3D[], callback:()=>void ) {
 		let oldTransform = this.transformation;
 		for( let o in offsets ) {
@@ -96,6 +159,29 @@ abstract class ShapeProcessorBase {
 			callback();
 		}
 		this.transformation = oldTransform;
+	}
+	decodeComplexAmount(ca:ComplexAmount):number {
+		return decodeComplexAmount(ca, this.jobContext.nativeUnit, {"board": this.jobContext.workpieceThickness});
+	}
+
+	abstract processShape(shape:Shape, depth:number):void;
+
+	processTask(task:Task):void {
+		switch(task.typeName) {
+		case "PathCarveTask":
+			this.withShapeUnit(getDistanceUnit(task.shapeUnitName), () => {
+				for( let s in task.shapes ) this.processShape(task.shapes[s], this.decodeComplexAmount(task.depth));
+			});
+			break;
+		}
+	}
+
+	processJob(job:Job) {
+		for( let t in job.tasks ) {
+			this.withTransform(vectormath.translationToTransform(job.offset), () => {
+				this.processTask(job.tasks[t]);
+			});
+		}
 	}
 }
 
@@ -149,38 +235,22 @@ class BoundsFinder extends ShapeProcessorBase {
 			return;
 		}
 	}
-
-	processTask(task:Task) {
-		switch(task.typeName) {
-		case "PathCarveTask":
-			for( let s in task.shapes ) this.processShape(task.shapes[s], task.depth);
-			break;
-		}
-	}
-
-	processJob(job:Job) {
-		for( let t in job.tasks ) {
-			this.withTransform(vectormath.translationToTransform(job.offset), () => {
-				this.processTask(job.tasks[t]);
-			});
-		}
-	}
 }
 
 class GCodeGenerator extends ShapeProcessorBase {
 	public emitter:(s:string)=>string;
-	public unit:DistanceUnit;
-	public zoomHeight:number = 1/4;
-	public minimumFastZ:number = 1/16;
-	public stepDown:number = 0.02;
+	protected zoomHeight:number;
+	protected minimumFastZ:number;
+	protected stepDown:number;
 	public fractionDigits:number = 4;
 	public commentMode:"None"|"Parentheses"|"Semicolon" = "Parentheses";
 	protected _position = {x:0, y:0, z:0};
-	protected currentBit:RouterBit;
-	constructor() {
-		super();
+	constructor(jobContext:JobContext) {
+		super(jobContext);
 		this.emitter = console.log.bind(console);
-		this.unit = INCH;
+		this.zoomHeight = this.decodeComplexAmount(inches(1/4));
+		this.minimumFastZ = this.decodeComplexAmount(inches(1/16));
+		this.stepDown = this.decodeComplexAmount(inches(0.02));
 	}
 	emit(line:string):void {
 		this.emitter(line);
@@ -246,7 +316,13 @@ class GCodeGenerator extends ShapeProcessorBase {
 	}
 	emitSetupCode():void {
 		this.emit("G90");
-		this.emit("G20");
+		if( this.jobContext.nativeUnit.name == "inch" ) {
+			this.emit("G20");
+		} else if( this.jobContext.nativeUnit.name == "millimeter" ) {
+			this.emit("G21");
+		} else {
+			throw new Error("GCodeGenerator can't handle native unit '"+this.jobContext.nativeUnit.name+"'");
+		}
 		this.emit("F3");
 		this.emit("S1000");
 		this.emit("M03");
@@ -341,47 +417,7 @@ class GCodeGenerator extends ShapeProcessorBase {
 		}
 		this.zoomToZoomHeight();
 	}
-	carveHoles(positions:Vector3D[], diameter:number, depth:number) {
-		let circleRadius = diameter/2 - this.currentBit.diameterFunction(0)/2;
-		if( circleRadius <= 0 ) {
-			this.emitComment(diameter + this.unit.names[1] + " hole will be a banger");
-			for( let p in positions ) {
-				this.zoomTo(positions[p]);
-				this.bangHole(depth, this.stepDown, this.stepDown/2);
-			}
-		} else {
-			this.emitComment(diameter + this.unit.names[1] + " hole will be circles");
-			const path = circlePath(circleRadius);
-			this.forEachOffset(positions, () => {
-				this.carvePath(path, depth);
-			})
-		}
-	}
-	carveShape(shape:Shape, depth:number) {
-		switch(shape.typeName) {
-		case "MultiShape":
-			for( let s in shape.subShapes ) {
-				this.carveShape(shape.subShapes[s], depth);
-			}
-			return;
-		case "TransformShape":
-			return this.withTransform(shape.transformation, () => {
-				this.carveShape(shape.subShape, depth);
-			});
-		case "Path":
-			return this.carvePath(shape, depth);
-		case "Points":
-			return this.carveHoles(shape.positions, 0, depth);
-		case "RoundHoles":
-			return this.carveHoles(shape.positions, shape.diameter, depth);
-		}
-		assertUnreachable(shape);
-	}
-	doPathCarveTask(task:PathCarveTask) {
-		for( let p in task.shapes ) {
-			this.carveShape(task.shapes[p], task.depth);
-		}
-	}
+
 	bangHole(depth:number, stepDown:number, stepUp:number) {
 		let currentZ = 0;
 		let targetZ = 0 - depth;
@@ -393,20 +429,49 @@ class GCodeGenerator extends ShapeProcessorBase {
 		}
 		this.g01(undefined, undefined, 0);
 	}
-	processTask(task:Task) {
-		switch(task.typeName) {
-		case "PathCarveTask": return this.doPathCarveTask(task);
+
+	carveHoles(positions:Vector3D[], diameter:number, depth:number) {
+		let circleRadius = diameter/2 - this.decodeComplexAmount(this.jobContext.routerBit.diameterFunction({}))/2;
+		if( circleRadius <= 0 ) {
+			this.emitComment(diameter + this.jobContext.nativeUnit.abbreviation + " hole will be a banger");
+			for( let p in positions ) {
+				this.zoomTo(positions[p]);
+				this.bangHole(depth, this.stepDown, this.stepDown/2);
+			}
+		} else {
+			this.emitComment(diameter + this.jobContext.nativeUnit.abbreviation + " hole will be circles");
+			const path = circlePath(circleRadius);
+			this.forEachOffset(positions, () => {
+				this.carvePath(path, depth);
+			})
 		}
 	}
+
+	processShape(shape:Shape, depth:number) {
+		switch(shape.typeName) {
+		case "MultiShape":
+			for( let s in shape.subShapes ) {
+				this.processShape(shape.subShapes[s], depth);
+			}
+			return;
+		case "TransformShape":
+			return this.withTransform(shape.transformation, () => {
+				this.processShape(shape.subShape, depth);
+			});
+		case "Path":
+			return this.carvePath(shape, depth);
+		case "Points":
+			return this.carveHoles(shape.positions, 0, depth);
+		case "RoundHoles":
+			return this.carveHoles(shape.positions, shape.diameter, depth);
+		}
+		assertUnreachable(shape);
+	}
+
 	processJob(job:Job):void {
-		this.currentBit = job.bit;
 		this.emitBlankLine();
 		this.emitComment("Job: "+job.name);
-		this.withTransform(vectormath.translationToTransform(job.offset), () => {
-			for( let p in job.tasks ) {
-				this.processTask(job.tasks[p]);
-			}
-		});
+		super.processJob(job);
 	}
 }
 
@@ -425,12 +490,11 @@ class SVGGenerator extends ShapeProcessorBase {
 	protected cutColor = "gray";
 
 	// Updated as jobs/tasks are processed
-	protected routerBit:RouterBit;
 	protected strokeColor = "purple";
 	protected strokeWidth:number = 0;
 
-	constructor() {
-		super();
+	constructor(jobContext:JobContext) {
+		super(jobContext);
 		this.emitter = console.log.bind(console);
 	}
 
@@ -479,7 +543,7 @@ class SVGGenerator extends ShapeProcessorBase {
 	emitHoles(positions:Vector3D[], diameter:number) {
 		let fill:string;
 		let stroke:string;
-		const tipWidth = this.routerBit.diameterFunction(0);
+		const tipWidth = this.decodeComplexAmount(this.jobContext.routerBit.diameterFunction({}));
 		const extraDiam = this.strokeWidth - tipWidth;
 		const bottomDiameter = Math.max(diameter, tipWidth);
 		const circleRadius = (bottomDiameter + extraDiam)/2;
@@ -519,27 +583,25 @@ class SVGGenerator extends ShapeProcessorBase {
 	processTask(task:Task) {
 		switch(task.typeName) {
 		case "PathCarveTask":
-			const cutTopWidth    = this.routerBit.diameterFunction(task.depth);
-			const cutBottomWidth = this.routerBit.diameterFunction(0);
-			if( cutTopWidth > cutBottomWidth ) {
-				this.strokeWidth = cutTopWidth;
-				this.strokeColor = this.cutColor;
+			this.withShapeUnit(getDistanceUnit(task.shapeUnitName), () => {
+				const cutTopWidth    = this.decodeComplexAmount(this.jobContext.routerBit.diameterFunction(task.depth));
+				const cutBottomWidth = this.decodeComplexAmount(this.jobContext.routerBit.diameterFunction({}));
+				if( cutTopWidth > cutBottomWidth ) {
+					this.strokeWidth = cutTopWidth;
+					this.strokeColor = this.cutColor;
+					for( let s in task.shapes ) this.processShape(task.shapes[s]);
+				}
+				this.strokeWidth = cutBottomWidth;
+				this.strokeColor = this.bottomColor;
 				for( let s in task.shapes ) this.processShape(task.shapes[s]);
-			}
-			this.strokeWidth = cutBottomWidth;
-			this.strokeColor = this.bottomColor;
-			for( let s in task.shapes ) this.processShape(task.shapes[s]);
+			});
 			break;
 		}
 	}
 
 	processJob(job:Job):void {
-		this.routerBit = job.bit;
-		this.withTransform(vectormath.translationToTransform(job.offset), () => {
-			for( let t in job.tasks ) {
-				this.processTask(job.tasks[t]);
-			}
-		});
+		this.emitter("<!-- Job: "+job.name+" -->\n");
+		super.processJob(job);
 	}
 
 	emitHeader(modelBounds:{minX:number,minY:number,maxX:number,maxY:number}):void {
@@ -548,7 +610,7 @@ class SVGGenerator extends ShapeProcessorBase {
 		this.emitter('<?xml version="1.0" standalone="no"?>\n');
 		this.openElement("svg", {
 			xmlns:"http://www.w3.org/2000/svg", version:"1.1",
-			style: "width: "+modelWidth+"in; height: "+modelHeight+"in",
+			style: "width: "+modelWidth+this.jobContext.nativeUnit.abbreviation+"; height: "+modelHeight+this.jobContext.nativeUnit.abbreviation,
 			viewBox:modelBounds.minX+" "+modelBounds.minY+" "+modelWidth+" "+modelHeight,
 			transform:"scale(1,-1)"
 		});
@@ -565,13 +627,14 @@ type LatOrLong = "longitudinal"|"lateral";
 interface TOGPanelOptions {
 	length: number; // Width in inches
 	cornerStyle: CornerStyleName;
-	outlineDepth: number;
+	includeHoles: boolean;
+	includeOutline: boolean;
+	includeLabel: boolean;
 	holeDiameter: number;
-	holeDepth: number;
 	holeSpacing: number;
 	label: string|undefined;
 	labelFontName: string;
-	labelDepth: number;
+	labelDepth: ComplexAmount;
 	labelScale: number;
 	labelDirection: LatOrLong;
 }
@@ -591,7 +654,7 @@ function makeTogPanelTasks(options:TOGPanelOptions):Task[] {
 	let label = options.label || "";
 	let labelShape = textToShape(label, labelFont);
 	let tasks:Task[] = [];
-	if( label.length > 0 && options.labelDepth > 0 ) {
+	if( label.length > 0 && decodeComplexAmount(options.labelDepth,INCH) > 0 ) {
 		let textPlacementTransform:TransformationMatrix3D;
 		if( options.labelDirection == "longitudinal" ) {
 			textPlacementTransform = vectormath.translationToTransform({x:0.25, y:3 - options.labelScale/2, z:0});
@@ -605,6 +668,7 @@ function makeTogPanelTasks(options:TOGPanelOptions):Task[] {
 		tasks.push({
 			typeName: "PathCarveTask",
 			depth: options.labelDepth,
+			shapeUnitName: "inch",
 			shapes: [
 				{
 					typeName: "TransformShape",
@@ -617,10 +681,11 @@ function makeTogPanelTasks(options:TOGPanelOptions):Task[] {
 			]
 		});
 	}
-	if( options.holeDepth > 0 ) {
+	if( options.includeHoles ) {
 		tasks.push({
 			typeName: "PathCarveTask",
-			depth: options.holeDepth,
+			shapeUnitName: "inch",
+			depth: throughDepth,
 			shapes: [
 				{
 					typeName: "RoundHoles",
@@ -630,10 +695,11 @@ function makeTogPanelTasks(options:TOGPanelOptions):Task[] {
 			]
 		});
 	}
-	if( options.outlineDepth > 0 ) {
+	if( options.includeOutline ) {
 		tasks.push({
 			typeName: "PathCarveTask",
-			depth: options.outlineDepth,
+			shapeUnitName: "inch",
+			depth: throughDepth,
 			shapes: [
 				boxPath({
 					x0: 0, y0: 0,
@@ -646,37 +712,104 @@ function makeTogPanelTasks(options:TOGPanelOptions):Task[] {
 	return tasks;
 }
 
-const parseableNumberRegex = /^([+-]?\d+(?:\.\d+)?)(?:\/(\d+))?/;
+const sumRegex = /.+\+.+/;
+const rationalNumberRegex = /.+\/.+/;
+const decimalNumberRegex = /^([+-]?\d+(?:\.\d+)?)?/;
 
-function parseNumber(numStr:string):number {
-	let m = parseableNumberRegex.exec(numStr);
-	if( m == null ) {
+function lcm(a:number, b:number) {
+	if( a == b ) return a;
+	return a*b;
+}
+
+function addRationals(a:RationalNumber, b:RationalNumber) {
+	let sumDenominator = lcm(a.denominator, b.denominator);
+	return {
+		numerator: a.numerator*a.denominator/sumDenominator + b.numerator*b.denominator/sumDenominator,
+		denominator: sumDenominator
+	}
+}
+
+function multiplyRationals(a:RationalNumber, b:RationalNumber) {
+	return {
+		numerator: a.numerator * b.numerator,
+		denominator: a.denominator * b.denominator,
+	}
+}
+
+function divideRationals(a:RationalNumber, b:RationalNumber) {
+	return {
+		numerator: a.numerator * b.denominator,
+		denominator: a.denominator * b.numerator,
+	}
+}
+
+
+function parseRationalNumber(numStr:string):RationalNumber {
+	let m;
+	if( sumRegex.exec(numStr) ) {
+		return numStr.split('+').map(parseRationalNumber).reduce(addRationals);
+	} else if( rationalNumberRegex.exec(numStr) ) {
+		return numStr.split('/').map(parseRationalNumber).reduce(divideRationals);
+	} else if( decimalNumberRegex.exec(numStr) ) {
+		return {numerator: +numStr, denominator: 1};
+	} else {
 		throw new Error("Failed to parse '"+numStr+"' as number");
 	}
-	let num = m[1];
-	let den = m[2];
-	if( den == null ) den = "1";
-	return +num / +den;
 }
 
-const numberWithUnitRegex =  /^([+-]?\d+(?:\.\d+)?(?:\/(\d+))?)(\D.*)$/;
+function parseNumber(numStr:string):number {
+	let rn = parseRationalNumber(numStr);
+	return rn.numerator / rn.denominator;
+}
 
-function parseDistance(str:string):number {
-	let m = numberWithUnitRegex.exec(str);
-	if( m == null ) {
-		throw new Error("Failed to parse '"+str+"' as distance; maybe you need tot add units?")
+function scaleComplexAmount(a:ComplexAmount, s:RationalNumber):ComplexAmount {
+	if( s.numerator == s.denominator ) return a;
+
+	let res:ComplexAmount = {};
+	for( let unitCode in a ) {
+		res[unitCode] = multiplyRationals(a[unitCode], s);
 	}
-	let v = parseNumber(m[1]+m[2]);
-	let u = getDistanceUnit(m[3]);
-	if( u == INCH ) return v;
-	return v * u.unitValueInMm / 25.4;
+	return res;
 }
 
-function makeVBit(degrees:number, pointSize:number):RouterBit {
-	const twiceSlope = Math.tan(degrees/2 * Math.PI/180);
+function addComplexAmounts(a:ComplexAmount, b:ComplexAmount):ComplexAmount {
+	let res:ComplexAmount = {};
+	for( let unitCode in a ) {
+		res[unitCode] = a[unitCode];
+	}
+	for( let unitCode in b ) {
+		if( res[unitCode] == undefined ) {
+			res[unitCode] = b[unitCode];
+		} else {
+			res[unitCode] = addRationals(res[unitCode], b[unitCode]);
+		}
+	}
+	return res;
+}
+
+function parseComplexAmount(caStr:string):ComplexAmount {
+	let m = /^(.*)(in|mm|board)$/.exec(caStr);
+	if( m == null ) throw new Error("Invalid complex amount string: '"+caStr+"'");
+	let unitName:string;
+	let u : DistanceUnit|undefined;
+	if( m[2] == "board" ) {
+		unitName = m[2];
+	} else if( (u = findDistanceUnit(m[2])) != undefined ) {
+		unitName = u.name;
+	} else {
+		throw new Error("Invalid unit name '"+m[2]+"'");
+	}
 	return {
-		name: (pointSize > 0 ? pointSize + "in-tip " : "") + degrees+"-degree carving bit",
-		diameterFunction: (depth) => pointSize + depth*twiceSlope,
+		[unitName]: parseRationalNumber(m[1])
+	}
+}
+
+function makeVBit(degrees:number, pointSize:ComplexAmount):RouterBit {
+	const twiceSlope = Math.tan(degrees/2 * Math.PI/180);
+	const pointSizeMm = decodeComplexAmount(pointSize, MM);
+	return {
+		name: (pointSizeMm > 0 ? pointSize + "in-tip " : "") + degrees+"-degree carving bit",
+		diameterFunction: (depth) => addComplexAmounts(pointSize, scaleComplexAmount(depth, {numerator:twiceSlope, denominator:1})),
 	}
 }
 
@@ -699,7 +832,7 @@ function translateShape(shape:Shape, offset:Vector3D):Shape {
 // Parts for router:
 // WSTYPE-200027 = over thingy
 // WSTYPE-200028 = under thingy
-// WSTYPE-200029 = ???
+// WSTYPE-200029 = better under thingy
 function makePart200027Tasks():Task[] {
 	// 1cm wide
 	// 40cm tall
@@ -720,7 +853,8 @@ function makePart200027Tasks():Task[] {
 	return [
 		{
 			typeName: "PathCarveTask",
-			depth: 1/25.4,
+			depth: millimeters(1),
+			shapeUnitName: "millimeter",
 			shapes: [
 				shapeMmToInch({
 					typeName: "Points",
@@ -730,27 +864,28 @@ function makePart200027Tasks():Task[] {
 		},
 		{
 			typeName: "PathCarveTask",
-			depth: panelThickness,
+			depth: throughDepth,
+			shapeUnitName: "millimeter",
 			shapes: [shapeMmToInch(pb.path)]
 		}
 	];
 }
 
 function makePart200028Tasks():Task[] {
-	const panelThickness = 1/8;
-	const panelWidth = 20 / 25.4;
-	const panelLength = 30 / 25.4;
-	const mountingHoleSpacing = 9.5 / 25.4;
+	const panelWidth = 20;
+	const panelLength = 30;
+	const mountingHoleSpacing = 9.5;
 	let pokeyHolePositions:Vector3D[] = [];
 	for( let phRow=0; phRow<=1; ++phRow ) {
-		for( let phY=2; phY < panelLength * 25.4; phY += 2) {
-			pokeyHolePositions.push({x:panelWidth/2 + (phRow-0.5)*mountingHoleSpacing, y:phY / 25.4, z:0})
+		for( let phY=2; phY < panelLength; phY += 2) {
+			pokeyHolePositions.push({x:panelWidth/2 + (phRow-0.5)*mountingHoleSpacing, y:phY, z:0})
 		}
 	}
 	return [
 		{
 			typeName: "PathCarveTask",
-			depth: 1/25.4,
+			depth: millimeters(1),
+			shapeUnitName: "millimeter",
 			shapes: [
 				{
 					typeName: "Points",
@@ -760,15 +895,16 @@ function makePart200028Tasks():Task[] {
 		},
 		{
 			typeName: "PathCarveTask",
-			depth: panelThickness,
+			depth: throughDepth,
+			shapeUnitName: "millimeter",
 			shapes: [
 				boxPath({
 					cx: panelWidth/2,
 					cy: panelLength/2,
-					width: 8 / 25.4,
-					height: panelLength - 10 / 25.4,
+					width: 8,
+					height: panelLength - 10,
 					cornerOptions: {
-						cornerRadius: 4 / 25.4,
+						cornerRadius: 4,
 						cornerStyleName: "Round"
 					}
 				}),
@@ -777,7 +913,7 @@ function makePart200028Tasks():Task[] {
 					width: panelWidth,
 					height: panelLength,
 					cornerOptions: {
-						cornerRadius: 1/8,
+						cornerRadius: 3,
 						cornerStyleName: "Round"
 					}
 				})
@@ -796,21 +932,24 @@ function processJobs(processor:JobProcessor, jobs:Job[]) {
 
 if( require.main == module ) {
 	let jobs:Job[] = [];
+	let includeOutline = true;
+	let includeHoles = true;
+	let includeLabel = true;
 	let label = "TTSGCG";
 	let labelFontName = "tog-block-letters";
-	let bitTipSize = 0.05;
+	let bitTipSize = inches(0.05);
 	let bitAngle = 30;
-	let holeDepth = 1/8;
+	let workpieceThickness = inches(1, 8);
 	let holeDiameter = 5/32;
-	let labelDepth = 1/32;
+	let labelDepth = millimeters(1);
 	let holeSpacing = 1/4; // Usually 1/2 is sufficient but why not do even better?!
 	let labelScale = 2.5/6; // Fits "TTSGCG" into 2.5 inches :P
-	let outlineDepth = 1/16;
 	let length = 1;
 	let labelDirection:LatOrLong = "lateral";
 	let outputMode:"svg"|"gcode"|"bounds" = "gcode";
-	let padding:number = 0.5;
+	let padding:ComplexAmount = inches(0.5);
 	let offset:Vector3D = {x:0, y:0, z:0};
+	let nativeUnit = INCH;
 
 	const makeBit = function() {
 		return makeVBit(bitAngle, bitTipSize);
@@ -824,27 +963,30 @@ if( require.main == module ) {
 		let m;
 		let arg = process.argv[i];
 		if( arg == "--no-outline" ) {
-			outlineDepth = 0;
-		} else if( (m = /^--outline-depth=(.*)$/.exec(arg)) ) {
-			outlineDepth = +m[1];
+			includeOutline = false;
 		} else if( arg == "--no-holes" ) {
-			holeDepth = 0;
+			includeHoles = false;
 		} else if( arg == '--holes-only' ) {
-			labelDepth = 0;
-			outlineDepth = 0;
+			includeHoles = true;
+			includeOutline = false;
+			includeLabel = false;
 		} else if( arg == '--outline-only' ) {
-			labelDepth = 0;
-			holeDepth = 0;
+			includeHoles = false;
+			includeOutline = true;
+			includeLabel = false;
 		} else if( arg == '--label-only' ) {
-			outlineDepth = 0;
-			holeDepth = 0;
+			includeHoles = false;
+			includeOutline = false;
+			includeLabel = true;
 		} else if( (m = /^--offset=([^,]*),([^,]*),([^,]*)$/.exec(arg)) ) {
 			offset = {x:offset.x, y:offset.y, z:offset.z};
-			if( !empty(m[1]) ) offset.x = parseDistance(m[1]);
-			if( !empty(m[2]) ) offset.y = parseDistance(m[2]);
-			if( !empty(m[3]) ) offset.z = parseDistance(m[3]);
-		} else if( (m = /^--hole-depth=(.*)$/.exec(arg)) ) {
-			holeDepth = +m[1];
+			if( !empty(m[1]) ) offset.x = parseNumber(m[1]);
+			if( !empty(m[2]) ) offset.y = parseNumber(m[2]);
+			if( !empty(m[3]) ) offset.z = parseNumber(m[3]);
+		} else if( (m = /^--native-unit=(.*)$/.exec(arg)) ) {
+			nativeUnit = getDistanceUnit(m[1]);
+		} else if( (m = /^--thickness=(.*)$/.exec(arg)) ) {
+			workpieceThickness = parseComplexAmount(m[1]);
 		} else if( (m = /^--label=(.*)$/.exec(arg)) ) {
 			label = m[1];
 		} else if( (m = /^--label-font=(.*)$/.exec(arg)) ) {
@@ -852,9 +994,11 @@ if( require.main == module ) {
 		} else if( (m = /^--label-direction=(longitudinal|lateral)$/.exec(arg)) ) {
 			labelDirection = <LatOrLong>m[1];
 		} else if( (m = /^--bit-diameter=(.+)$/.exec(arg)) ) {
-			bitTipSize = parseNumber(m[1]);
+			bitTipSize = parseComplexAmount(m[1]);
+		} else if( (m = /^--bit-angle=(.+)$/.exec(arg)) ) {
+			bitAngle = parseNumber(m[1]);
 		} else if( (m = /^--padding=(.*)$/.exec(arg)) ) {
-			padding = parseNumber(m[1]);
+			padding = parseComplexAmount(m[1]);
 		} else if( arg == "--output-bounds" ) {
 			outputMode = "bounds";
 		} else if( arg == "--output-gcode" ) {
@@ -865,14 +1009,14 @@ if( require.main == module ) {
 			jobs.push({
 				name: "TOGPanel",
 				offset,
-				bit: makeBit(),
 				tasks: makeTogPanelTasks({
 					cornerStyle: "Round",
+					includeHoles,
+					includeOutline,
+					includeLabel,
 					holeDiameter,
 					labelFontName,
-					holeDepth,
 					holeSpacing,
-					outlineDepth,
 					length,
 					label,
 					labelDepth,
@@ -884,14 +1028,12 @@ if( require.main == module ) {
 			jobs.push({
 				name: "WSTYPE-200027",
 				offset,
-				bit: makeBit(),
 				tasks: makePart200027Tasks()
 			});
 		} else if( arg == '--wstype-200028' ) {
 			jobs.push({
 				name: "WSTYPE-200028",
 				offset,
-				bit: makeBit(),
 				tasks: makePart200028Tasks()
 			});
 		} else {
@@ -900,8 +1042,13 @@ if( require.main == module ) {
 		}
 	}
 
+	const jobContext:JobContext = {
+		nativeUnit,
+		workpieceThickness,
+		routerBit: makeBit(),
+	};
 
-	let bf = new BoundsFinder();
+	let bf = new BoundsFinder(jobContext);
 	processJobs(bf, jobs);
 
 	switch( outputMode ) {
@@ -911,15 +1058,15 @@ if( require.main == module ) {
 		console.log("z: "+bf.minZ +".."+bf.maxZ);
 		break;
 	case "gcode":
-		let gcg = new GCodeGenerator();
+		let gcg = new GCodeGenerator(jobContext);
 		gcg.commentMode = "None";
 		gcg.emitSetupCode();
 		processJobs(gcg, jobs);
 		gcg.emitShutdownCode();
 		break;
 	case "svg":
-		let padded = aabb.pad(bf, padding);
-		let sg = new SVGGenerator();
+		let padded = aabb.pad(bf, decodeComplexAmount(padding, nativeUnit));
+		let sg = new SVGGenerator(jobContext);
 		sg.emitHeader(padded);
 		processJobs(sg, jobs);
 		sg.emitFooter();
