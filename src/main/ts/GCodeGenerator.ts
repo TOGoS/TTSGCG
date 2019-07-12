@@ -97,7 +97,7 @@ type Task = PathCarveTask;
 interface Job
 {
 	name:string;
-	offset:Vector3D;
+	transformation:TransformationMatrix3D;
 	tasks:Task[];
 }
 
@@ -178,7 +178,7 @@ abstract class ShapeProcessorBase {
 
 	processJob(job:Job) {
 		for( let t in job.tasks ) {
-			this.withTransform(vectormath.translationToTransform(job.offset), () => {
+			this.withTransform(job.transformation, () => {
 				this.processTask(job.tasks[t]);
 			});
 		}
@@ -1010,10 +1010,18 @@ if( require.main == module ) {
 	let outputMode:"svg"|"gcode"|"bounds" = "gcode";
 	let padding:ComplexAmount = inches(0.5);
 	let offset:Vector3D = {x:0, y:0, z:0};
+	let rotation:number = 0;
 	let nativeUnit:DistanceUnit = MM;
 
 	const makeBit = function() {
 		return makeVBit(bitAngle, bitTipSize);
+	}
+
+	const getTransformation = function():TransformationMatrix3D {
+		return vectormath.multiplyTransform(
+			vectormath.translationToTransform(offset),
+			vectormath.xyzAxisAngleToTransform(0, 0, -1, rotation*Math.PI/180)
+		);
 	}
 
 	const empty = function(s:string|undefined):boolean {
@@ -1044,6 +1052,8 @@ if( require.main == module ) {
 			if( !empty(m[1]) ) offset.x = parseNumber(m[1]);
 			if( !empty(m[2]) ) offset.y = parseNumber(m[2]);
 			if( !empty(m[3]) ) offset.z = parseNumber(m[3]);
+		} else if( (m = /^--rotation=(.*)$/.exec(arg)) ) {
+			rotation = +m[1];
 		} else if( (m = /^--native-unit=(.*)$/.exec(arg)) ) {
 			nativeUnit = getDistanceUnit(m[1]);
 		} else if( (m = /^--thickness=(.*)$/.exec(arg)) ) {
@@ -1069,7 +1079,7 @@ if( require.main == module ) {
 		} else if( arg == '--tog-panel' ) {
 			jobs.push({
 				name: "TOGPanel",
-				offset,
+				transformation: getTransformation(),
 				tasks: makeTogPanelTasks({
 					cornerStyle: "Round",
 					includeHoles,
@@ -1088,19 +1098,19 @@ if( require.main == module ) {
 		} else if( arg == '--wstype-200027' ) {
 			jobs.push({
 				name: "WSTYPE-200027",
-				offset,
+				transformation: getTransformation(),
 				tasks: makePart200027Tasks()
 			});
 		} else if( arg == '--wstype-200028' ) {
 			jobs.push({
 				name: "WSTYPE-200028",
-				offset,
+				transformation: getTransformation(),
 				tasks: makePart200028Tasks()
 			});
 		} else if( arg == '--wstype-200029' ) {
 			jobs.push({
 				name: "WSTYPE-200028",
-				offset,
+				transformation: getTransformation(),
 				tasks: makePart200029Tasks()
 			});
 		} else {
