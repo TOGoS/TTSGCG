@@ -1,3 +1,5 @@
+import ComplexAmount from './ComplexAmount';
+
 export interface Vector3D { x:number, y:number, z:number }
 
 export interface TransformationMatrix3D {
@@ -32,7 +34,6 @@ export function scaleToTransform(s:number|Vector3D):TransformationMatrix3D {
 		zx:0, zy:0, zz: s.z, z1:0,
 	}
 }
-
 
 export function multiplyTransform(m1:TransformationMatrix3D, m2:TransformationMatrix3D):TransformationMatrix3D {
 	const xx = m1.xx * m2.xx + m1.xy * m2.yx + m1.xz * m2.zx + 0;
@@ -117,3 +118,8 @@ export function addVectors( ...vectors:Vector3D[] ):Vector3D {
 	}
 	return {x,y,z};
 }
+
+export const zeroVector = {x:0,y:0,z:0};
+Object.freeze(zeroVector);
+export const identityTransformation = createIdentityTransform();
+Object.freeze(identityTransformation);

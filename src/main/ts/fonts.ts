@@ -1,7 +1,8 @@
 import { Font, TextCharacter, TextBoundingBox } from './text';
-import Shape, { Path, PathSegment } from './Shape';
+import Cut, { identityTransformations } from './Cut';
 import { Vector3D } from './vectormath';
 import { boxPath } from './pathutils';
+import { PathSegment, Path } from './Shape2D';
 
 export const blockLetterBoundingBox:TextBoundingBox = {
 	leftX: -0.5, rightX: 0.5,
@@ -38,7 +39,7 @@ export const togBlockLetters:Font = (() => {
 		}
 	}
 	function mkblok(vertexLists:number[][]):TextCharacter {
-		let paths:Path[] = [];
+		let cuts:Cut[] = [];
 		for( let vl in vertexLists ) {
 			let vertexList = vertexLists[vl];
 			let segments:PathSegment[] = [];
@@ -49,17 +50,22 @@ export const togBlockLetters:Font = (() => {
 					endVertexIndex: vertexList[i+1]
 				});
 			}
-			paths.push({
-				typeName:"Path",
-				vertexes:blockVertexes,
-				segments
+			cuts.push({
+				classRef: "http://ns.nuke24.net/TTSGCG/Cut/TracePath",
+				spaceSide: "middle",
+				path: {
+					classRef: "http://ns.nuke24.net/TTSGCG/Shape2D/Path",
+					vertexes:blockVertexes,
+					segments
+				}
 			});
 		}
 		return {
-			box: blockLetterBoundingBox,
-			shape: {
-				typeName: "CompoundShape",
-				components: paths
+			boundingBox: blockLetterBoundingBox,
+			cut: {
+				classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
+				transformations: identityTransformations,
+				components: cuts
 			}
 		}
 	}
@@ -143,7 +149,7 @@ export const togLineLetters:Font = (() => {
 	type PathOp = number|["curve-left"|"curve-right",number];
 
 	function mkblok(vertexLists:PathOp[][]):TextCharacter {
-		let shapes:Shape[] = [];
+		let cuts:Cut[] = [];
 		let points:Vector3D[] = [];
 		for( let vl in vertexLists ) {
 			let vertexList = vertexLists[vl];
@@ -193,23 +199,29 @@ export const togLineLetters:Font = (() => {
 					throw new Error("Bad path op: "+JSON.stringify(op));
 				}
 			}
-			shapes.push({
-				typeName:"Path",
-				vertexes,
-				segments
+			cuts.push({
+				classRef: "http://ns.nuke24.net/TTSGCG/Cut/TracePath",
+				path: {
+					classRef: "http://ns.nuke24.net/TTSGCG/Shape2D/Path",
+					vertexes,
+					segments
+				},
+				spaceSide: "middle"
 			});
 		}
 		if( points.length > 0 ) {
-			shapes.push({
-				typeName: "Points",
-				positions: points
+			cuts.push({
+				classRef: "http://ns.nuke24.net/TTSGCG/Cut/RoundHole",
+				diameter: 0,
+				depth: 0,
 			})
 		}
 		return {
-			box: blockLetterBoundingBox,
-			shape: {
-				typeName: "CompoundShape",
-				components: shapes
+			boundingBox: blockLetterBoundingBox,
+			cut: {
+				classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
+				transformations: identityTransformations,
+				components: cuts
 			}
 		}
 	}

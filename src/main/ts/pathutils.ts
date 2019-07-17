@@ -1,4 +1,5 @@
-import Shape, { Path, PathSegment } from './Shape';
+import {Path, PathSegment} from './Shape2D'
+import Cut from './Cut';
 import * as vectormath from './vectormath';
 import { TransformationMatrix3D, Vector3D } from './vectormath';
 
@@ -12,7 +13,7 @@ export class PathBuilder
 	protected _currentDirection:Vector3D = {x:1, y:0, z:0};
 	constructor(startPoint:Vector3D) {
 		this.path = {
-			typeName: "Path",
+			classRef: "http://ns.nuke24.net/TTSGCG/Shape2D/Path",
 			vertexes: [startPoint],
 			segments: []
 		};
