@@ -8,6 +8,8 @@ import { CornerStyleName, PathBuilder, boxPath, circlePath, quarterTurn } from '
 import { textToShape } from './text';
 import { getFont } from './fonts';
 import { decode } from 'punycode';
+import RationalNumber from './RationalNumber';
+import ComplexAmount from './ComplexAmount';
 
 function vectorToString(v:Vector3D, digits=4):string {
 	return "<"+v.x.toFixed(digits)+","+v.y.toFixed(digits)+","+v.z.toFixed(digits)+">";
@@ -58,11 +60,6 @@ function getDistanceUnit(name:string):DistanceUnit {
 }
 
 type DistanceUnitName = "inch"|"millimeter"|"board";
-interface RationalNumber {
-	numerator: number;
-	denominator: number;
-}
-type ComplexAmount = {[unitName:string]: RationalNumber};
 
 const throughDepth:ComplexAmount = {"board":{numerator:1,denominator:1}};
 
