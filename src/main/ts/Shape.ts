@@ -20,7 +20,14 @@ export interface Path {
 	vertexes: Vector3D[];
 	segments: PathSegment[];
 }
-
+// A path for the purpose of tracing a solid,
+// which means when cutting, the path should be adjusted outwards
+// (towards the 'space side')
+export interface Edge {
+	typeName: "Edge",
+	path: Path,
+	spaceSide: "left"|"right"
+}
 export interface TransformShape {
 	typeName:"TransformShape";
 	transformation:TransformationMatrix3D;

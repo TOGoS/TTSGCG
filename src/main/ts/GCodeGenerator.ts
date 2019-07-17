@@ -80,7 +80,7 @@ function millimeters(numerator:number, denominator:number=1):ComplexAmount {
 interface PathCarveTask
 {
 	typeName: "PathCarveTask";
-	shapeUnitName: DistanceUnitName;
+	shapeUnit: ComplexAmount;
 	shapes: Shape[];
 	depth: ComplexAmount;
 }
@@ -136,17 +136,21 @@ interface JobContext {
 abstract class ShapeProcessorBase {
 	protected transformation:TransformationMatrix3D = vectormath.createIdentityTransform();
 	constructor(protected jobContext:JobContext) {}
+	protected scale:number = 1;
 	protected transformVector(vec:Vector3D):Vector3D {
 		return vectormath.transformVector(this.transformation, vec);
 	}
 	withTransform(xf:TransformationMatrix3D, callback:()=>void) {
 		let oldTransform = this.transformation;
+		let oldScale = this.scale;
 		this.transformation = vectormath.multiplyTransform(oldTransform, xf);
+		this.scale = Math.max(this.transformation.xx, this.transformation.xy, this.transformation.xz);
 		callback();
 		this.transformation = oldTransform;
+		this.scale = oldScale;
 	}
-	withShapeUnit(unit:DistanceUnit, callback:()=>void) {
-		let scale = unit.unitValueInMm / this.jobContext.nativeUnit.unitValueInMm;
+	withShapeUnit(unit:ComplexAmount, callback:()=>void) {
+		let scale = decodeComplexAmount(unit, this.jobContext.nativeUnit);
 		this.withTransform(vectormath.scaleToTransform(scale), callback);
 	}
 	forEachOffset(offsets:Vector3D[], callback:()=>void ) {
@@ -166,7 +170,7 @@ abstract class ShapeProcessorBase {
 	processTask(task:Task):void {
 		switch(task.typeName) {
 		case "PathCarveTask":
-			this.withShapeUnit(getDistanceUnit(task.shapeUnitName), () => {
+			this.withShapeUnit(task.shapeUnit, () => {
 				for( let s in task.shapes ) this.processShape(task.shapes[s], this.decodeComplexAmount(task.depth));
 			});
 			break;
@@ -214,13 +218,13 @@ class BoundsFinder extends ShapeProcessorBase {
 	processShape(shape:Shape, depth:number) {
 		switch(shape.typeName) {
 		case "CompoundShape":
-			for( let s in shape.subShapes ) {
-				this.processShape(shape.subShapes[s], depth);
+			for( let s in shape.components ) {
+				this.processShape(shape.components[s], depth);
 			}
 			return;
 		case "TransformShape":
 			return this.withTransform(shape.transformation, () => {
-				this.processShape(shape.subShape, depth);
+				this.processShape(shape.transformee, depth);
 			});
 		case "Path":
 			return this.processPath(shape);
@@ -428,7 +432,8 @@ class GCodeGenerator extends ShapeProcessorBase {
 	}
 
 	carveHoles(positions:Vector3D[], diameter:number, depth:number) {
-		let circleRadius = diameter/2 - this.decodeComplexAmount(this.jobContext.routerBit.diameterFunction({}))/2;
+		let bitRadius = this.decodeComplexAmount(this.jobContext.routerBit.diameterFunction({}))/2
+		let circleRadius = this.scale * diameter/2 - bitRadius;
 		if( circleRadius <= 0 ) {
 			this.emitComment(diameter + this.jobContext.nativeUnit.abbreviation + " hole will be a banger");
 			for( let p in positions ) {
@@ -437,7 +442,7 @@ class GCodeGenerator extends ShapeProcessorBase {
 			}
 		} else {
 			this.emitComment(diameter + this.jobContext.nativeUnit.abbreviation + " hole will be circles");
-			const path = circlePath(circleRadius);
+			const path = circlePath(circleRadius/this.scale);
 			this.forEachOffset(positions, () => {
 				this.carvePath(path, depth);
 			})
@@ -447,13 +452,13 @@ class GCodeGenerator extends ShapeProcessorBase {
 	processShape(shape:Shape, depth:number) {
 		switch(shape.typeName) {
 		case "CompoundShape":
-			for( let s in shape.subShapes ) {
-				this.processShape(shape.subShapes[s], depth);
+			for( let s in shape.components ) {
+				this.processShape(shape.components[s], depth);
 			}
 			return;
 		case "TransformShape":
 			return this.withTransform(shape.transformation, () => {
-				this.processShape(shape.subShape, depth);
+				this.processShape(shape.transformee, depth);
 			});
 		case "Path":
 			return this.carvePath(shape, depth);
@@ -542,7 +547,7 @@ class SVGGenerator extends ShapeProcessorBase {
 		let stroke:string;
 		const tipWidth = this.decodeComplexAmount(this.jobContext.routerBit.diameterFunction({}));
 		const extraDiam = this.strokeWidth - tipWidth;
-		const bottomDiameter = Math.max(diameter, tipWidth);
+		const bottomDiameter = Math.max(this.scale * diameter, tipWidth);
 		const circleRadius = (bottomDiameter + extraDiam)/2;
 		for( let p in positions ) {
 			let xfPos = this.transformVector(positions[p]);
@@ -558,13 +563,13 @@ class SVGGenerator extends ShapeProcessorBase {
 	processShape(shape:Shape) {
 		switch(shape.typeName) {
 		case "CompoundShape":
-			for( let s in shape.subShapes ) {
-				this.processShape(shape.subShapes[s]);
+			for( let s in shape.components ) {
+				this.processShape(shape.components[s]);
 			}
 			return;
 		case "TransformShape":
 			return this.withTransform(shape.transformation, () => {
-				this.processShape(shape.subShape);
+				this.processShape(shape.transformee);
 			});
 		case "Path":
 			return this.emitPath(shape);
@@ -580,7 +585,7 @@ class SVGGenerator extends ShapeProcessorBase {
 	processTask(task:Task) {
 		switch(task.typeName) {
 		case "PathCarveTask":
-			this.withShapeUnit(getDistanceUnit(task.shapeUnitName), () => {
+			this.withShapeUnit(task.shapeUnit, () => {
 				const cutTopWidth    = this.decodeComplexAmount(this.jobContext.routerBit.diameterFunction(task.depth));
 				const cutBottomWidth = this.decodeComplexAmount(this.jobContext.routerBit.diameterFunction({}));
 				if( cutTopWidth > cutBottomWidth ) {
@@ -665,7 +670,7 @@ function makeTogPanelTasks(options:TOGPanelOptions):Task[] {
 		tasks.push({
 			typeName: "PathCarveTask",
 			depth: options.labelDepth,
-			shapeUnitName: "inch",
+			shapeUnit: inches(1),
 			shapes: [
 				{
 					typeName: "TransformShape",
@@ -673,7 +678,7 @@ function makeTogPanelTasks(options:TOGPanelOptions):Task[] {
 						textPlacementTransform,
 						vectormath.scaleToTransform(options.labelScale),
 					),
-					subShape: labelShape
+					transformee: labelShape
 				}
 			]
 		});
@@ -681,7 +686,7 @@ function makeTogPanelTasks(options:TOGPanelOptions):Task[] {
 	if( options.includeHoles ) {
 		tasks.push({
 			typeName: "PathCarveTask",
-			shapeUnitName: "inch",
+			shapeUnit: inches(1),
 			depth: throughDepth,
 			shapes: [
 				{
@@ -695,7 +700,7 @@ function makeTogPanelTasks(options:TOGPanelOptions):Task[] {
 	if( options.includeOutline ) {
 		tasks.push({
 			typeName: "PathCarveTask",
-			shapeUnitName: "inch",
+			shapeUnit: inches(1),
 			depth: throughDepth,
 			shapes: [
 				boxPath({
@@ -814,7 +819,7 @@ function transformShape(xf:TransformationMatrix3D, shape:Shape):Shape {
 	return {
 		typeName: "TransformShape",
 		transformation: xf,
-		subShape: shape
+		transformee: shape
 	}
 }
 
@@ -851,7 +856,7 @@ function makePart200027Tasks():Task[] {
 		{
 			typeName: "PathCarveTask",
 			depth: millimeters(1),
-			shapeUnitName: "millimeter",
+			shapeUnit: millimeters(1),
 			shapes: [
 				shapeMmToInch({
 					typeName: "Points",
@@ -862,7 +867,7 @@ function makePart200027Tasks():Task[] {
 		{
 			typeName: "PathCarveTask",
 			depth: throughDepth,
-			shapeUnitName: "millimeter",
+			shapeUnit: millimeters(1),
 			shapes: [shapeMmToInch(pb.path)]
 		}
 	];
@@ -882,7 +887,7 @@ function makePart200028Tasks():Task[] {
 		{
 			typeName: "PathCarveTask",
 			depth: millimeters(1),
-			shapeUnitName: "millimeter",
+			shapeUnit: millimeters(1),
 			shapes: [
 				{
 					typeName: "Points",
@@ -893,7 +898,7 @@ function makePart200028Tasks():Task[] {
 		{
 			typeName: "PathCarveTask",
 			depth: throughDepth,
-			shapeUnitName: "millimeter",
+			shapeUnit: millimeters(1),
 			shapes: [
 				boxPath({
 					cx: panelWidth/2,
@@ -933,7 +938,7 @@ function makePart200029Tasks():Task[] {
 		{
 			typeName: "PathCarveTask",
 			depth: millimeters(1),
-			shapeUnitName: "millimeter",
+			shapeUnit: millimeters(1),
 			shapes: [
 				{
 					typeName: "Points",
@@ -944,7 +949,7 @@ function makePart200029Tasks():Task[] {
 		{
 			typeName: "PathCarveTask",
 			depth: throughDepth,
-			shapeUnitName: "millimeter",
+			shapeUnit: millimeters(1),
 			shapes: [
 				boxPath({
 					cx: panelWidth/2,
@@ -986,6 +991,34 @@ interface JobProcessor {
 
 function processJobs(processor:JobProcessor, jobs:Job[]) {
 	for( let j in jobs ) processor.processJob(jobs[j]);
+}
+
+import Part from './Part';
+import makeWstype200030 from './parts/wstype200030';
+
+function partToTasks(part:Part, into:Task[]=[]):Task[] {
+	switch(part.classRef) {
+	case "http://ns.nuke24.net/RoutedPart/CompoundPart":
+		for( let c in part.components ) partToTasks(part.components[c], into);
+		break;
+	case "http://ns.nuke24.net/RoutedPart/Edge":
+		into.push({
+			typeName: "PathCarveTask",
+			depth: {"board": {numerator:1, denominator:1}},
+			shapeUnit: part.unit,
+			shapes: [ part.shape ]
+		});
+		break;
+	case "http://ns.nuke24.net/RoutedPart/Pocket":
+		into.push({
+			typeName: "PathCarveTask",
+			depth: scaleComplexAmount(part.unit, {numerator:part.depth, denominator:1}),
+			shapeUnit: part.unit,
+			shapes: [ part.shape ]
+		});
+		break;
+	}
+	return into;
 }
 
 if( require.main == module ) {
@@ -1109,6 +1142,12 @@ if( require.main == module ) {
 				name: "WSTYPE-200028",
 				transformation: getTransformation(),
 				tasks: makePart200029Tasks()
+			});
+		} else if( arg == '--wstype-200030' ) {
+			jobs.push({
+				name: "WSTYPE-200030",
+				transformation: getTransformation(),
+				tasks: partToTasks(makeWstype200030())
 			});
 		} else {
 			console.error("Unrecognized argument: "+arg);

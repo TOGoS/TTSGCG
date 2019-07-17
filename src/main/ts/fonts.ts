@@ -59,7 +59,7 @@ export const togBlockLetters:Font = (() => {
 			box: blockLetterBoundingBox,
 			shape: {
 				typeName: "CompoundShape",
-				subShapes: paths
+				components: paths
 			}
 		}
 	}
@@ -209,7 +209,7 @@ export const togLineLetters:Font = (() => {
 			box: blockLetterBoundingBox,
 			shape: {
 				typeName: "CompoundShape",
-				subShapes: shapes
+				components: shapes
 			}
 		}
 	}

@@ -29,19 +29,19 @@ export function textToShape(text:string, charset:Font):Shape {
 		}
 	}
 	let right = 0;
-	let subShapes:Shape[] = [];
+	let components:Shape[] = [];
 	for( let c in chars ) {
 		let char = chars[c];
 		let charWidth = char.box.rightX - char.box.leftX;
-		subShapes.push({
+		components.push({
 			typeName: "TransformShape",
 			transformation: translationToTransform({x: right - char.box.leftX, y: 0, z:0}),
-			subShape: char.shape
+			transformee: char.shape
 		});
 		right += charWidth;
 	}
 	return {
 		typeName: "CompoundShape",
-		subShapes
+		components
 	}
 }
