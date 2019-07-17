@@ -1,4 +1,4 @@
-import { Shape, Path, PathSegment } from './shapes';
+import Shape, { Path, PathSegment } from './Shape';
 import * as vectormath from './vectormath';
 import { TransformationMatrix3D, Vector3D } from './vectormath';
 

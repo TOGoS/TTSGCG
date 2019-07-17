@@ -3,7 +3,7 @@ import { AABB3D } from './aabb';
 import * as vectormath from './vectormath';
 import { TransformationMatrix3D, Vector3D } from './vectormath';
 
-import { Shape, Path, PathSegment } from './shapes';
+import Shape, { Path, PathSegment } from './Shape';
 import { CornerStyleName, PathBuilder, boxPath, circlePath, quarterTurn } from './pathutils';
 import { textToShape } from './text';
 import { getFont } from './fonts';
@@ -213,7 +213,7 @@ class BoundsFinder extends ShapeProcessorBase {
 
 	processShape(shape:Shape, depth:number) {
 		switch(shape.typeName) {
-		case "MultiShape":
+		case "CompoundShape":
 			for( let s in shape.subShapes ) {
 				this.processShape(shape.subShapes[s], depth);
 			}
@@ -446,7 +446,7 @@ class GCodeGenerator extends ShapeProcessorBase {
 
 	processShape(shape:Shape, depth:number) {
 		switch(shape.typeName) {
-		case "MultiShape":
+		case "CompoundShape":
 			for( let s in shape.subShapes ) {
 				this.processShape(shape.subShapes[s], depth);
 			}
@@ -557,7 +557,7 @@ class SVGGenerator extends ShapeProcessorBase {
 
 	processShape(shape:Shape) {
 		switch(shape.typeName) {
-		case "MultiShape":
+		case "CompoundShape":
 			for( let s in shape.subShapes ) {
 				this.processShape(shape.subShapes[s]);
 			}

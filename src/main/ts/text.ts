@@ -1,5 +1,5 @@
 import { Vector3D, translationToTransform } from './vectormath';
-import { Shape, Path, PathSegment } from './shapes';
+import Shape, { Path, PathSegment } from './Shape';
 import { boxPath } from './pathutils';
 
 export interface TextBoundingBox {
@@ -41,7 +41,7 @@ export function textToShape(text:string, charset:Font):Shape {
 		right += charWidth;
 	}
 	return {
-		typeName: "MultiShape",
+		typeName: "CompoundShape",
 		subShapes
 	}
 }

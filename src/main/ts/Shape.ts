@@ -1,5 +1,7 @@
 import { TransformationMatrix3D, Vector3D } from './vectormath';
 
+// They're really 2D shapes.
+
 export interface StraightPathSegment {
 	typeName:"StraightPathSegment";
 	startVertexIndex:number;
@@ -22,11 +24,11 @@ export interface Path {
 export interface TransformShape {
 	typeName:"TransformShape";
 	transformation:TransformationMatrix3D;
-	subShape:Shape;
+	transformee:Shape;
 }
-export interface MultiShape {
-	typeName:"MultiShape";
-	subShapes:Shape[];
+export interface CompoundShape {
+	typeName:"CompoundShape";
+	components:Shape[];
 }
 export interface Points {
 	typeName:"Points"
@@ -37,4 +39,5 @@ export interface RoundHoles {
 	positions:Vector3D[];
 	diameter:number;
 }
-export type Shape = TransformShape|MultiShape|Path|RoundHoles|Points;
+type Shape = TransformShape|CompoundShape|Path|RoundHoles|Points;
+export default Shape;

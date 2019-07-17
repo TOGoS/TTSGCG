@@ -1,5 +1,5 @@
 import { Font, TextCharacter, TextBoundingBox } from './text';
-import { Shape, Path, PathSegment } from './shapes';
+import Shape, { Path, PathSegment } from './Shape';
 import { Vector3D } from './vectormath';
 import { boxPath } from './pathutils';
 
@@ -58,7 +58,7 @@ export const togBlockLetters:Font = (() => {
 		return {
 			box: blockLetterBoundingBox,
 			shape: {
-				typeName: "MultiShape",
+				typeName: "CompoundShape",
 				subShapes: paths
 			}
 		}
@@ -208,7 +208,7 @@ export const togLineLetters:Font = (() => {
 		return {
 			box: blockLetterBoundingBox,
 			shape: {
-				typeName: "MultiShape",
+				typeName: "CompoundShape",
 				subShapes: shapes
 			}
 		}
