@@ -324,14 +324,16 @@ class GCodeGenerator extends ShapeProcessorBase {
 	}
 	emitSetupCode():void {
 		this.emit("G90");
+		let speedInPerMinute = 3;
 		if( this.jobContext.nativeUnit.name == "inch" ) {
 			this.emit("G20");
+			this.emit("F"+speedInPerMinute);
 		} else if( this.jobContext.nativeUnit.name == "millimeter" ) {
 			this.emit("G21");
+			this.emit("F"+this.fmtDist(speedInPerMinute * 25.4));
 		} else {
 			throw new Error("GCodeGenerator can't handle native unit '"+this.jobContext.nativeUnit.name+"'");
 		}
-		this.emit("F3");
 		this.emit("S1000");
 		this.emit("M03");
 		this.zoomToZoomHeight();
