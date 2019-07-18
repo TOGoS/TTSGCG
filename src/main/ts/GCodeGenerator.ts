@@ -260,6 +260,7 @@ class GCodeGenerator extends ShapeProcessorBase {
 		case "parentheses": return this.emit("("+c+")");
 		case "semicolon": return this.emit("; "+c);
 		}
+		assertUnreachable(this.commentMode);
 	}
 	emitBlock(lines:string[]):void {
 		for(let l in lines) this.emitter(lines[l]);
@@ -964,8 +965,8 @@ if( require.main == module ) {
 			outputMode = "bounds";
 		} else if( arg == "--output-gcode" ) {
 			outputMode = "gcode";
-		} else if( (m = /^--gcode-comment-mode=(None|Semicolon|Parentheses)/.exec(arg)) ) {
-			gCodeCommentMode = (m[2] as GCodeCommentMode)
+		} else if( (m = /^--gcode-comment-mode=(none|semicolon|parentheses)$/.exec(arg)) ) {
+			gCodeCommentMode = (m[1] as GCodeCommentMode)
 		} else if( arg == "--output-svg" ) {
 			outputMode = "svg";
 		/*
