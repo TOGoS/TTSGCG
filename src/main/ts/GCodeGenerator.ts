@@ -863,7 +863,7 @@ interface JobProcessor {
 	processJobs(jobs:Job[]):void;
 }
 
-import makeWstype200030 from './parts/WSTYPE-200030';
+import makeWstype200030 from './parts/wstype200030';
 import { Path } from './Shape2D';
 import Part from './Part';
 import { type } from 'os';
