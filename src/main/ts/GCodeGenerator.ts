@@ -903,6 +903,7 @@ interface JobProcessor {
 }
 
 import makeWstype200030 from './parts/wstype200030';
+import { flatheadNumberSixHole } from './parts/countersinktest';
 import { Path } from './Shape2D';
 import Part from './Part';
 import { type } from 'os';
@@ -942,6 +943,17 @@ if( require.main == module ) {
 		);
 	}
 
+	const cutToJob = function(name:string, cut:Cut):Job {
+		return {
+			name: name,
+			cut: {
+				classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
+				transformations: [getTransformation()],
+				components: [cut],
+			}
+		}
+	}
+
 	const partToJob = function(part:Part):Job {
 		return {
 			name: part.name,
@@ -951,7 +963,6 @@ if( require.main == module ) {
 				components: [part.cut],
 			}
 		}
-		partToJob
 	}
 
 	const empty = function(s:string|undefined):boolean {
@@ -1049,6 +1060,11 @@ if( require.main == module ) {
 		*/
 		} else if( arg == '--wstype-200030' ) {
 			jobs.push(partToJob(makeWstype200030()));
+		} else if( arg == '--test-countersink' ) {
+			jobs.push(cutToJob("Test countersink", flatheadNumberSixHole));
+		} else if( (m = /--part=(.*)$/.exec(arg)) ) {
+			// TODO: Use dynamic imports to load the part
+			//jobs.push(partToJob(makeWstype200030()));
 		} else {
 			console.error("Unrecognized argument: "+arg);
 			process.exit(1);
