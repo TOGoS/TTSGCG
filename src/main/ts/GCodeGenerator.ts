@@ -76,6 +76,13 @@ interface JobContext {
 	routerBit: RouterBit;
 }
 
+type Brand<K, T> = K & { __brand: T }
+
+type ModelVector = Brand<Vector3D, "vector in model space">;
+type ModelDistance = Brand<number, "distance in model units">;
+type NativePosition = Brand<Vector3D, "absolute position in native units">;
+type NativeDistance = Brand<number, "distance in native units">;
+
 abstract class ShapeProcessorBase {
 	protected minZ:number;
 	public fractionDigits:number = 4;
@@ -89,15 +96,26 @@ abstract class ShapeProcessorBase {
 
 	// Stateful stuff
 	protected currentTransformation:TransformationMatrix3D = vectormath.createIdentityTransform();
-	protected currentScale:number = 1;
-	protected currentUnit:ComplexAmount;
-	protected get currentZ() { return this.currentVector.z; }
-	protected get clampedZ() { return Math.max(this.minZ, this.currentVector.z); }
-	protected get currentDepth() { return -this.currentZ; }
-	protected get clampedDepth() { return -this.clampedZ; }
-	protected get currentVector():Vector3D {
-		return vectormath.transformVector(this.currentTransformation, zeroVector);
+	// Scale of shape units in the current transformation.
+	// This only makes sense if x and y have not been scaled independently.
+	get currentHorizontalScale():number {
+		return vectormath.vectorLength({x:this.currentTransformation.xx, y:this.currentTransformation.yx, z:0});
 	}
+	// Hopefully things haven't been rotated around x or y lol
+	get currentVerticalScale():number {
+		return this.currentTransformation.zz;
+	}
+	// The current transformation includes conversion from currentUnit to native units
+	protected currentUnit:ComplexAmount;
+
+	// These return transformed position in native units
+	protected get currentPosition():NativePosition {
+		return vectormath.transformVector(this.currentTransformation, zeroVector) as NativePosition;
+	}
+	protected get currentZ():NativeDistance { return this.currentPosition.z as NativeDistance; }
+	protected get clampedZ():NativeDistance { return Math.max(this.minZ, this.currentPosition.z) as NativeDistance; }
+	protected get currentDepth():NativeDistance { return -this.currentZ as NativeDistance; }
+	protected get clampedDepth():NativeDistance { return -this.clampedZ as NativeDistance; }
 
 	constructor(protected jobContext:JobContext) {
 		this.minZ = this.decodeComplexAmount(this.jobContext.minZ);
@@ -108,26 +126,26 @@ abstract class ShapeProcessorBase {
 		return this.decodeComplexAmount(this.jobContext.routerBit.diameterFunction({[this.jobContext.nativeUnit.name]: {numerator:depth, denominator:1}}));
 	}
 
-	protected transformVector(vec:Vector3D):Vector3D {
-		return vectormath.transformVector(this.currentTransformation, vec);
+	protected transformVector(vec:ModelVector):NativePosition {
+		return vectormath.transformVector(this.currentTransformation, vec) as NativePosition;
 	}
-	protected transformAndClampVector(vec:Vector3D):Vector3D {
-		vec = this.transformVector(vec);
-		return vec.z >= this.minZ ? vec : {x:vec.x, y:vec.y, z:this.minZ};
+	protected transformAndClampVector(vec:ModelVector):NativePosition {
+		const pos = this.transformVector(vec);
+		return pos.z >= this.minZ ? pos : {x:pos.x, y:pos.y, z:this.minZ} as NativePosition;
 	}
-	protected transformRadius(rad:number):number {
-		return this.currentScale * rad;
+	protected transformHorizontalDistance(rad:ModelDistance):NativeDistance {
+		return this.currentHorizontalScale * rad as NativeDistance;
+	}
+	protected transformVerticalDistance(rad:ModelDistance):NativeDistance {
+		return this.currentVerticalScale * rad as NativeDistance;
 	}
 	forEachTransform(transforms:Transformish[], callback:()=>void ) {
 		let oldTransform = this.currentTransformation;
-		let oldScale = this.currentScale;
 		for( let t in transforms ) {
 			this.currentTransformation = vectormath.multiplyTransform(oldTransform, toTransformationMatrix3D(transforms[t]));
-			this.currentScale = Math.max(this.currentTransformation.xx, this.currentTransformation.xy, this.currentTransformation.xz);
 			callback();
 		}
 		this.currentTransformation = oldTransform;
-		this.currentScale = oldScale;
 	}
 	withTransform(xf:TransformationMatrix3D, callback:()=>void) {
 		this.forEachTransform([xf], callback);
@@ -147,7 +165,7 @@ abstract class ShapeProcessorBase {
 		this.currentUnit = oldUnit;
 	}
 	withCutDepth(depth:number|undefined, callback:()=>void) {
-		if( depth == Infinity ) depth = 99999 / this.currentScale;
+		if( depth == Infinity ) depth = 99999 / this.currentHorizontalScale;
 		if( depth == undefined || depth == 0 ) {
 			callback();
 			return;
@@ -163,12 +181,12 @@ abstract class ShapeProcessorBase {
 		}
 		this.transformation = oldTransform;
 	}*/
-	decodeComplexAmount(ca:ComplexAmount):number {
-		return decodeComplexAmount(ca, this.jobContext.nativeUnit, distanceUnits);
+	decodeComplexAmount(ca:ComplexAmount):NativeDistance {
+		return decodeComplexAmount(ca, this.jobContext.nativeUnit, distanceUnits) as NativeDistance;
 	}
 
 	abstract processPath(path:Path):void;
-	abstract processCircle(diameter:number):void;
+	abstract processCircle(diameter:ModelDistance):void;
 	abstract processConicPocket(cp:ConicPocket):void;
 
 	processCut(cut:Cut) {
@@ -185,7 +203,7 @@ abstract class ShapeProcessorBase {
 			this.withCutDepth(cut.depth, () => this.processPath(cut.path));
 			return;
 		case "http://ns.nuke24.net/TTSGCG/Cut/RoundHole":
-			this.withCutDepth(cut.depth, () => this.processCircle(cut.diameter));
+			this.withCutDepth(cut.depth, () => this.processCircle(cut.diameter as ModelDistance));
 			return;
 		case "http://ns.nuke24.net/TTSGCG/Cut/ConicPocket":
 			this.processConicPocket(cut);
@@ -224,13 +242,13 @@ class BoundsFinder extends ShapeProcessorBase {
 	processPath(path:Path):void {
 		for( let s in path.segments ) {
 			let seg = path.segments[s];
-			this.processPoint(this.transformVector(path.vertexes[seg.startVertexIndex]));
-			this.processPoint(this.transformVector(path.vertexes[seg.endVertexIndex]));
+			this.processPoint(this.transformVector(path.vertexes[seg.startVertexIndex] as ModelVector));
+			this.processPoint(this.transformVector(path.vertexes[seg.endVertexIndex] as ModelVector));
 		}
 	}
 	processCircle(diameter:number) {
 		let radius = diameter/2;
-		let p = this.transformVector(zeroVector);
+		let p = this.currentPosition;
 		this.minX = Math.min(this.minX, p.x - radius);
 		this.minY = Math.min(this.minY, p.y - radius);
 		this.minZ = Math.min(this.minZ, p.z);
@@ -247,9 +265,9 @@ type GCodeCommentMode = "none"|"parentheses"|"semicolon";
 
 class GCodeGenerator extends ShapeProcessorBase {
 	public emitter:(s:string)=>string;
-	protected zoomHeight:number;
+	protected zoomHeight:NativeDistance;
 	protected minimumFastZ:number;
-	protected stepDown:number;
+	protected stepDown:NativeDistance;
 	public commentMode:GCodeCommentMode = "parentheses";
 	protected _position = {x:0, y:0, z:0};
 	constructor(jobContext:JobContext) {
@@ -349,15 +367,17 @@ class GCodeGenerator extends ShapeProcessorBase {
 	zoomToZoomHeight():void {
 		this.g00(undefined, undefined, this.zoomHeight);
 	}
-	zoomTo(position:Vector3D):void {
+	protected zoomToNative(pos:NativePosition) {
 		this.zoomToZoomHeight();
-		position = this.transformAndClampVector(position);
-		this.g00(position.x, position.y);
-		let minZoomZ = Math.max(this.minimumFastZ, position.z);
+		this.g00(pos.x, pos.y);
+		let minZoomZ = Math.max(this.minimumFastZ, pos.z);
 		this.g00(undefined, undefined, minZoomZ);
-		if( minZoomZ != position.z ) {
-			this.g01(undefined, undefined, position.z);
+		if( minZoomZ != pos.z ) {
+			this.g01(undefined, undefined, pos.z);
 		}
+	}
+	zoomTo(modelPos:ModelVector):void {
+		this.zoomToNative(this.transformAndClampVector(modelPos));
 	}
 	carvePathSegment(path:Path, segmentIndex:number, direction:number):void {
 		let segment = path.segments[segmentIndex];
@@ -370,9 +390,9 @@ class GCodeGenerator extends ShapeProcessorBase {
 			startVertexIndex = segment.endVertexIndex;
 			endVertexIndex   = segment.startVertexIndex;
 		}
-		let startVertex = this.transformVector(path.vertexes[startVertexIndex]);
+		let startVertex = this.transformVector(path.vertexes[startVertexIndex] as ModelVector);
 		// TODO: Check that startVertex is where we already are???
-		let endVertex = this.transformVector(path.vertexes[endVertexIndex]);
+		let endVertex = this.transformVector(path.vertexes[endVertexIndex] as ModelVector);
 		// Theoretically path vertexes could have depth.  I'm ignoring that for now.
 		if(segment.typeName == "StraightPathSegment") {
 			this.g01(endVertex.x, endVertex.y);
@@ -381,7 +401,7 @@ class GCodeGenerator extends ShapeProcessorBase {
 			if( axisVertexIndex == undefined ) {
 				throw new Error("Undefined curve center vertex on path segment "+segmentIndex);
 			}
-			let curveCenterVertex = this.transformVector(path.vertexes[axisVertexIndex]);
+			let curveCenterVertex = this.transformVector(path.vertexes[axisVertexIndex] as ModelVector);
 			let i = curveCenterVertex.x - startVertex.x;
 			let j = curveCenterVertex.y - startVertex.y;
 			let k = curveCenterVertex.z - startVertex.z;
@@ -394,7 +414,7 @@ class GCodeGenerator extends ShapeProcessorBase {
 		let targetZ = this.clampedZ;
 		let seg0 = path.segments[0];
 		let startPoint = path.vertexes[seg0.startVertexIndex];
-		this.zoomTo(startPoint);
+		this.zoomTo(startPoint as ModelVector);
 		let currentZ = 0;
 		let direction = 1;
 		while( currentZ > targetZ ) {
@@ -427,7 +447,7 @@ class GCodeGenerator extends ShapeProcessorBase {
 		this.zoomToZoomHeight();
 	}
 
-	bangHole(depth:number, stepDown:number, stepUp:number) {
+	bangHole(depth:NativeDistance, stepDown:NativeDistance, stepUp:NativeDistance) {
 		let currentZ = 0;
 		let targetZ = 0 - depth;
 		this.g01(undefined, undefined, currentZ); // If it's not already at the surface
@@ -443,33 +463,43 @@ class GCodeGenerator extends ShapeProcessorBase {
 		let circleRadius = diameter/2;
 		if( circleRadius <= 0 ) {
 			this.emitComment(diameter + this.jobContext.nativeUnit.abbreviation + " hole will be a banger");
-			this.zoomTo({x:0,y:0,z:0});
-			this.bangHole(this.clampedDepth, this.stepDown, this.stepDown/2);
+			this.zoomTo({x:0,y:0,z:0} as ModelVector);
+			this.bangHole(this.clampedDepth, this.stepDown, this.stepDown/2 as NativeDistance);
 		} else {
 			this.emitComment(diameter + this.jobContext.nativeUnit.abbreviation + " hole will be circles");
-			const path = circlePath(circleRadius/this.currentScale);
+			const path = circlePath(circleRadius/this.currentHorizontalScale);
 			this.processPath(path);
 		}
 	}
 
-	processCircle(diameter:number) {
-		this.emitCircle(this.transformRadius(diameter) - this.bitDiameterAtDepth(0));
+	processCircle(diameter:ModelDistance) {
+		this.emitCircle(this.transformHorizontalDistance(diameter as ModelDistance) - this.bitDiameterAtDepth(0));
 	}
 
 	processConicPocket(cp:ConicPocket) {
 		let bitDiam = this.bitDiameterAtDepth(0);
 		let increment = bitDiam/4;
-		let topRad = this.transformRadius(cp.diameter/2);
-		let botRad = this.transformRadius(cp.bottomDiameter/2);
-		let botDepth = this.transformRadius(cp.bottomDepth);
-		let topDepth = this.transformRadius(cp.edgeDepth);
+		let origin:NativePosition = this.currentPosition;
+		let topRad = this.transformHorizontalDistance(cp.diameter/2 as ModelDistance);
+		let botRad = this.transformHorizontalDistance(cp.bottomDiameter/2 as ModelDistance);
+		let botDepth = this.transformVerticalDistance(cp.bottomDepth as ModelDistance);
+		let topDepth = this.transformVerticalDistance(cp.edgeDepth as ModelDistance);
 
 		let slope = (botDepth - topDepth) / (topRad - botRad);
+		
 		this.emitComment("Need to carve cone from rad="+topRad+" to "+botRad+" in drad="+increment+" steps");
-		for( let r=topRad; r>=botRad; r -= increment ) {
-			let depth = topDepth + slope * (topRad - r);
-			this.emitComment("Cut circle with radius "+r+", depth "+depth);
-			this.withCutDepth(depth/this.currentScale, () => this.emitCircle(r*2));
+		let zoomed = false;
+		for( let r:NativeDistance=topRad; r>=botRad; r = r - increment as NativeDistance) {
+			let z = origin.z - (topDepth + slope * (topRad - r));
+			if( z >= 0 ) continue;
+			if( z < this.minZ ) z = this.minZ;
+			if( !zoomed ) {
+				this.zoomToNative({x:origin.x, y:origin.y - r, z} as NativePosition);
+				zoomed = true;
+			} else {
+				this.g01(origin.x, origin.y - r, z);
+			}
+			this.g03(origin.x, origin.y - r, z, 0, r, 0);
 		}
 		this.emitComment("Done carving cone");
 		if( cp.cutsBottom ) {
@@ -537,12 +567,13 @@ class SVGGenerator extends ShapeProcessorBase {
 
 	processPath(path:Path) {
 		let dParts:string[] = [];
+		let vertexes = path.vertexes as ModelVector[];
 		let started = false;
 		let prevVertexIndex:number|undefined = undefined;
 		for( let s in path.segments ) {
 			let seg = path.segments[s];
-			let startVertex = this.transformVector(path.vertexes[seg.startVertexIndex]);
-			let endVertex = this.transformVector(path.vertexes[seg.endVertexIndex]);
+			let startVertex = this.transformVector(vertexes[seg.startVertexIndex]);
+			let endVertex = this.transformVector(vertexes[seg.endVertexIndex]);
 			if( prevVertexIndex != seg.startVertexIndex ) {
 				dParts.push("M"+startVertex.x+","+startVertex.y);
 			}
@@ -551,7 +582,7 @@ class SVGGenerator extends ShapeProcessorBase {
 				dParts.push("L"+this.fmtDist(endVertex.x)+","+this.fmtDist(endVertex.y));
 				break;
 			case "ClockwisePathSegment": case "CounterClockwisePathSegment":
-				let axisVertex = this.transformVector(path.vertexes[seg.axisVertexIndex]);
+				let axisVertex = this.transformVector(vertexes[seg.axisVertexIndex]);
 				let axisDx = axisVertex.x - startVertex.x;
 				let axisDy = axisVertex.y - startVertex.y;
 				let radius = Math.sqrt(axisDx*axisDx + axisDy*axisDy);
@@ -569,7 +600,7 @@ class SVGGenerator extends ShapeProcessorBase {
 	}
 
 	emitCircle(diameter:number) {
-		let xfPos = this.currentVector;
+		let xfPos = this.currentPosition;
 		this.openElement("circle", {
 			cx: xfPos.x, cy: xfPos.y,
 			r: diameter/2,
@@ -578,18 +609,18 @@ class SVGGenerator extends ShapeProcessorBase {
 		}, true);
 	}
 
-	processCircle(diameter:number) {
+	processCircle(diameter:ModelDistance) {
 		let extraDiam = 0;
 		if(this.currentMode == "top") {
 			extraDiam = this.bitDiameterAtDepth(this.clampedDepth) - this.bitDiameterAtDepth(0);
 		}
-		const circleDiameter = Math.max(this.transformRadius(diameter), this.strokeWidth) + extraDiam;
+		const circleDiameter = Math.max(this.transformHorizontalDistance(diameter), this.strokeWidth) + extraDiam;
 		this.emitCircle(circleDiameter);
 	}
 
 	processConicPocket(cp:ConicPocket) {
-		if( this.currentMode == "top" ) this.emitCircle(this.transformRadius(cp.diameter));
-		else this.emitCircle(this.transformRadius(cp.bottomDiameter));
+		if( this.currentMode == "top" ) this.emitCircle(this.transformHorizontalDistance(cp.diameter as ModelDistance));
+		else this.emitCircle(this.transformHorizontalDistance(cp.bottomDiameter as ModelDistance));
 	}
 
 	processJob(job:Job) {
