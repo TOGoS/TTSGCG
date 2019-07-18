@@ -11,9 +11,9 @@ const flatheadNumberSixHole:CompoundCut = {
         {
             classRef: "http://ns.nuke24.net/TTSGCG/Cut/ConicPocket",
             diameter: 0.25,
-            bottomDiameter: 0.126,
-            bottomDepth: (0.25 - 0.126),
             edgeDepth: 0,
+            bottomDiameter: 0.126,
+            bottomDepth: (0.25 - 0.126)/2,
             cutsBottom: false,
         },
         {

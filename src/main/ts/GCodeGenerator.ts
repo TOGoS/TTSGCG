@@ -3,7 +3,7 @@ import { AABB3D } from './aabb';
 import * as vectormath from './vectormath';
 import { TransformationMatrix3D, Vector3D, zeroVector } from './vectormath';
 
-import Cut, { identityTransformations } from './Cut';
+import Cut, { identityTransformations, ConicPocket } from './Cut';
 import { CornerStyleName, PathBuilder, boxPath, circlePath, quarterTurn } from './pathutils';
 import { textToCut } from './text';
 import { getFont } from './fonts';
@@ -62,7 +62,7 @@ interface Job
 }
 
 function assertUnreachable(n:never) {
-	throw new Error("Shouldn't've made it here");
+	throw new Error("Shouldn't've made it here: "+n);
 }
 
 interface RouterBit {
@@ -104,12 +104,19 @@ abstract class ShapeProcessorBase {
 		this.currentUnit = {[jobContext.nativeUnit.name]: {numerator:1, denominator:1}};
 	}
 
+	bitDiameterAtDepth(depth:number) {
+		return this.decodeComplexAmount(this.jobContext.routerBit.diameterFunction({[this.jobContext.nativeUnit.name]: {numerator:depth, denominator:1}}));
+	}
+
 	protected transformVector(vec:Vector3D):Vector3D {
 		return vectormath.transformVector(this.currentTransformation, vec);
 	}
 	protected transformAndClampVector(vec:Vector3D):Vector3D {
 		vec = this.transformVector(vec);
 		return vec.z >= this.minZ ? vec : {x:vec.x, y:vec.y, z:this.minZ};
+	}
+	protected transformRadius(rad:number):number {
+		return this.currentScale * rad;
 	}
 	forEachTransform(transforms:Transformish[], callback:()=>void ) {
 		let oldTransform = this.currentTransformation;
@@ -125,7 +132,7 @@ abstract class ShapeProcessorBase {
 	withTransform(xf:TransformationMatrix3D, callback:()=>void) {
 		this.forEachTransform([xf], callback);
 	}
-	withShapeUnit(unit:ComplexAmount|undefined, callback:()=>void) {
+	withCutUnit(unit:ComplexAmount|undefined, callback:()=>void) {
 		if( unit == undefined ) {
 			callback();
 			return;
@@ -139,8 +146,8 @@ abstract class ShapeProcessorBase {
 		this.withTransform(vectormath.scaleToTransform(scale), callback);
 		this.currentUnit = oldUnit;
 	}
-	withDepth(depth:number|undefined, callback:()=>void) {
-		if( depth == Infinity ) depth = this.currentZ - this.minZ;
+	withCutDepth(depth:number|undefined, callback:()=>void) {
+		if( depth == Infinity ) depth = 99999 / this.currentScale;
 		if( depth == undefined || depth == 0 ) {
 			callback();
 			return;
@@ -162,11 +169,12 @@ abstract class ShapeProcessorBase {
 
 	abstract processPath(path:Path):void;
 	abstract processCircle(diameter:number):void;
+	abstract processConicPocket(cp:ConicPocket):void;
 
 	processCut(cut:Cut) {
 		switch(cut.classRef) {
 		case "http://ns.nuke24.net/TTSGCG/Cut/Compound":
-			return this.withShapeUnit(cut.unit, () =>
+			return this.withCutUnit(cut.unit, () =>
 				this.forEachTransform(cut.transformations, () => {
 					for( let s in cut.components ) {
 						this.processCut(cut.components[s]);
@@ -174,13 +182,13 @@ abstract class ShapeProcessorBase {
 				})
 			);
 		case "http://ns.nuke24.net/TTSGCG/Cut/TracePath":
-			this.withDepth(cut.depth, () => this.processPath(cut.path));
+			this.withCutDepth(cut.depth, () => this.processPath(cut.path));
 			return;
 		case "http://ns.nuke24.net/TTSGCG/Cut/RoundHole":
-			this.withDepth(cut.depth, () => this.processCircle(cut.diameter));
+			this.withCutDepth(cut.depth, () => this.processCircle(cut.diameter));
 			return;
 		case "http://ns.nuke24.net/TTSGCG/Cut/ConicPocket":
-			this.processCircle(cut.diameter);
+			this.processConicPocket(cut);
 			return;
 		}
 		assertUnreachable(cut);
@@ -229,6 +237,9 @@ class BoundsFinder extends ShapeProcessorBase {
 		this.maxX = Math.max(this.maxX, p.x + radius);
 		this.maxY = Math.max(this.maxY, p.y + radius);
 		this.maxZ = Math.max(this.maxZ, p.z);
+	}
+	processConicPocket(cp:ConicPocket) {
+		this.processCircle(cp.diameter);
 	}
 }
 
@@ -325,6 +336,7 @@ class GCodeGenerator extends ShapeProcessorBase {
 		this.emit("M03");
 		this.zoomToZoomHeight();
 		this.emitBlankLine();
+		this.emitComment("Bit tip diameter: "+formatComplexAmount(this.jobContext.routerBit.diameterFunction({})));
 	}
 	emitShutdownCode():void {
 		this.emitBlankLine();
@@ -425,9 +437,8 @@ class GCodeGenerator extends ShapeProcessorBase {
 		this.g01(undefined, undefined, 0);
 	}
 
-	processCircle(diameter:number) {
-		let bitRadius = this.decodeComplexAmount(this.jobContext.routerBit.diameterFunction({}))/2
-		let circleRadius = this.currentScale * diameter/2 - bitRadius;
+	emitCircle(diameter:number) {
+		let circleRadius = diameter/2;
 		if( circleRadius <= 0 ) {
 			this.emitComment(diameter + this.jobContext.nativeUnit.abbreviation + " hole will be a banger");
 			this.zoomTo({x:0,y:0,z:0});
@@ -436,6 +447,31 @@ class GCodeGenerator extends ShapeProcessorBase {
 			this.emitComment(diameter + this.jobContext.nativeUnit.abbreviation + " hole will be circles");
 			const path = circlePath(circleRadius/this.currentScale);
 			this.processPath(path);
+		}
+	}
+
+	processCircle(diameter:number) {
+		this.emitCircle(this.transformRadius(diameter) - this.bitDiameterAtDepth(0));
+	}
+
+	processConicPocket(cp:ConicPocket) {
+		let bitDiam = this.bitDiameterAtDepth(0);
+		let increment = bitDiam/4;
+		let topRad = this.transformRadius(cp.diameter/2);
+		let botRad = this.transformRadius(cp.bottomDiameter/2);
+		let botDepth = this.transformRadius(cp.bottomDepth);
+		let topDepth = this.transformRadius(cp.edgeDepth);
+
+		let slope = (botDepth - topDepth) / (topRad - botRad);
+		this.emitComment("Need to carve cone from rad="+topRad+" to "+botRad+" in drad="+increment+" steps");
+		for( let r=topRad; r>=botRad; r -= increment ) {
+			let depth = topDepth + slope * (topRad - r);
+			this.emitComment("Cut circle with radius "+r+", depth "+depth);
+			this.withCutDepth(depth/this.currentScale, () => this.emitCircle(r*2));
+		}
+		this.emitComment("Done carving cone");
+		if( cp.cutsBottom ) {
+			throw new Error("cutsButtom not supported!");
 		}
 	}
 
@@ -476,8 +512,7 @@ class SVGGenerator extends ShapeProcessorBase {
 		else return this.bottomColor;
 	}
 	get strokeWidth():number {
-		let depth = {[this.jobContext.nativeUnit.name]: {numerator:this.clampedDepth, denominator:1}};
-		return this.decodeComplexAmount(this.jobContext.routerBit.diameterFunction(depth));
+		return this.bitDiameterAtDepth(this.currentMode == "bottom" ? 0 : this.clampedDepth);
 	}
 
 	constructor(jobContext:JobContext) {
@@ -531,28 +566,32 @@ class SVGGenerator extends ShapeProcessorBase {
 		this.openElement("path", {"fill": "none", "stroke-linecap": "round", "stroke-linejoin": "round", "stroke": this.strokeColor, "stroke-width": this.strokeWidth, "d": dParts.join(" ")}, true);
 	}
 
-	processCircle(diameter:number) {
-		let fill:string;
-		let stroke:string;
-		const tipWidth = this.decodeComplexAmount(this.jobContext.routerBit.diameterFunction({}));
-		const extraDiam = this.strokeWidth - tipWidth;
-		const bottomDiameter = Math.max(this.currentScale * diameter, tipWidth);
-		const circleRadius = (bottomDiameter + extraDiam)/2;
+	emitCircle(diameter:number) {
 		let xfPos = this.currentVector;
 		this.openElement("circle", {
 			cx: xfPos.x, cy: xfPos.y,
-			r: circleRadius,
+			r: diameter/2,
 			fill: this.strokeColor,
 			"stroke-width": 0,
 		}, true);
 	}
 
-	set xxcurrentMode(mode:"EmitTopCut"|"EmitBottomCut") {
-		
-		const cutBottomWidth = this.decodeComplexAmount(this.jobContext.routerBit.diameterFunction({}));
+	processCircle(diameter:number) {
+		let extraDiam = 0;
+		if(this.currentMode == "top") {
+			extraDiam = this.bitDiameterAtDepth(this.clampedDepth) - this.bitDiameterAtDepth(0);
+		}
+		const circleDiameter = Math.max(this.transformRadius(diameter), this.strokeWidth) + extraDiam;
+		this.emitCircle(circleDiameter);
 	}
+
+	processConicPocket(cp:ConicPocket) {
+		if( this.currentMode == "top" ) this.emitCircle(this.transformRadius(cp.diameter));
+		else this.emitCircle(this.transformRadius(cp.bottomDiameter));
+	}
+
 	processJob(job:Job) {
-		this.emitComment("Job: "+job.name);
+		this.emitComment("Job: "+job.name+" ("+this.currentMode+")");
 		super.processJob(job);
 	}
 
