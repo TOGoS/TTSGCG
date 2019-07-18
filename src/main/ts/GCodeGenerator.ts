@@ -478,7 +478,8 @@ class GCodeGenerator extends ShapeProcessorBase {
 
 	processConicPocket(cp:ConicPocket) {
 		let bitDiam = this.bitDiameterAtDepth(0);
-		let increment = bitDiam/4;
+		let teenth = this.decodeComplexAmount({"inch": {numerator:1, denominator:16}});
+		let increment = Math.min(teenth, bitDiam/2);
 		let origin:NativePosition = this.currentPosition;
 		let topRad = this.transformHorizontalDistance(cp.diameter/2 as ModelDistance);
 		let botRad = this.transformHorizontalDistance(cp.bottomDiameter/2 as ModelDistance);
