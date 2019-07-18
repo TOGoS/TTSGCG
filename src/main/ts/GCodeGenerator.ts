@@ -918,8 +918,8 @@ if( require.main == module ) {
 	let includeLabel = true;
 	let label = "TTSGCG";
 	let labelFontName = "tog-block-letters";
-	let bitTipSize = inches(0.05);
-	let bitAngle = 30;
+	let bitTipSize = inches(0.01);
+	let bitAngle = 11;
 	let workpieceThickness = inches(1, 8);
 	let holeDiameter = 5/32;
 	let labelDepth = millimeters(1);
