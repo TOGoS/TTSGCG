@@ -53,10 +53,7 @@ export function decodeComplexAmount(amount:ComplexAmount, nativeUnit:Unit, unitT
 		if( unitName == nativeUnit.name ) {
 			total += amount[unitName].numerator / amount[unitName].denominator;
 		} else {
-			let unit = unitTable[unitName];
-			if( unit == undefined ) {
-				throw new Error("Invalid unit "+unitName);
-			}
+			let unit = getUnit(unitName, unitTable);
 			let value = unit.unitValue.numerator * amount[unitName].numerator / unit.unitValue.denominator / amount[unitName].denominator;
 			total += nativeUnit.unitValue.denominator * value / nativeUnit.unitValue.numerator;
 		}
