@@ -956,7 +956,7 @@ if( require.main == module ) {
 	let labelFontName = "tog-block-letters";
 	let bitTipSize = inches(0.01);
 	let bitAngle = 11;
-	let workpieceThickness = inches(1, 8);
+	let workpieceThickness:ComplexAmount|undefined = undefined;
 	let holeDiameter = 5/32;
 	let labelDepth = millimeters(1);
 	let holeSpacing = 1/4; // Usually 1/2 is sufficient but why not do even better?!
@@ -1109,6 +1109,10 @@ if( require.main == module ) {
 			console.error("Unrecognized argument: "+arg);
 			process.exit(1);
 		}
+	}
+
+	if( workpieceThickness == undefined ) {
+		throw new Error("Please indicate your workpiece --thickness=...");
 	}
 
 	const jobContext:JobContext = {
