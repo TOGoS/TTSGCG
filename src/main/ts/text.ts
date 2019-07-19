@@ -23,29 +23,47 @@ export interface Font {
 }
 
 export function textToCut(text:string, charset:Font):Cut {
-	let x = 0;
-	let chars:TextCharacter[] = [];
+	let lines:TextCharacter[][] = [];
+	let curLine:TextCharacter[] = [];
+	let lineHeight = 0;
+	let lineTop = 0;
 	for( let i=0; i<text.length; ++i ) {
 		let charKey = text.charAt(i);
+		if( charKey == "\n" ) {
+			lines.push(curLine);
+			curLine = [];
+			continue;
+		}
 		let char = charset.characters[charKey];
 		if( char != undefined ) {
-			chars.push(char);
+			lineHeight = Math.max(lineHeight, char.boundingBox.topY - char.boundingBox.bottomY);
+			lineTop = Math.max(lineTop, char.boundingBox.topY);
+			curLine.push(char);
 		}
 	}
+	console.error(`Lineheight ${lineHeight}`)
+	if( curLine ) lines.push(curLine);
 	let right = 0;
+	let top = -lineTop;;
 	let components:Cut[] = [];
-	for( let c in chars ) {
-		let char = chars[c];
-		let charWidth = char.boundingBox.rightX - char.boundingBox.leftX;
-		components.push({
-			classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
-			transformations: [translationToTransform({x: right - char.boundingBox.leftX, y: 0, z:0})],
-			components: [char.cut]
-		});
-		right += charWidth;
+	for( let l in lines ) {
+		let line = lines[l];
+		for( let c in line ) {
+			let char = line[c];
+			let charWidth = char.boundingBox.rightX - char.boundingBox.leftX;
+			components.push({
+				classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
+				transformations: [translationToTransform({x: right - char.boundingBox.leftX, y: top, z:0})],
+				components: [char.cut]
+			});
+			right += charWidth;
+		}
+		right = 0;
+		top -= lineHeight;
 	}
 	return {
 		classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
+		comment: '"' + text + '"',
 		transformations: identityTransformations,
 		components
 	}
