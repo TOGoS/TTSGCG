@@ -1,7 +1,10 @@
 import { boxPath } from '../pathutils';
 import Cut, { identityTransformations, CompoundCut } from '../Cut';
 import Part from '../Part';
+import * as vectormath from '../vectormath';
 import { Vector3D } from '../vectormath';
+import { textToCut } from '../text';
+import { getFont } from '../fonts';
 
 function lomgHole(x:number,y:number,width:number,height:number):Cut {
     return {
@@ -58,12 +61,23 @@ export default function makePart():Part {
             }
         })
     }
+    const fontScale = 2.7;
+    const textHeight = fontScale * 2;
+    const textTop = 30 + textHeight/2;
+    const label:Cut = {
+        classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
+        transformations: [vectormath.multiplyTransform(
+            vectormath.translationToTransform({x:1, y:textTop, z:-1}),
+            vectormath.scaleToTransform(3),
+        )],
+        components: [textToCut("WSTYPE\n200031", getFont("tog-line-letters"))],
+    };
     return {
         cut: {
             classRef:"http://ns.nuke24.net/TTSGCG/Cut/Compound",
             transformations: identityTransformations,
             components: [
-                pokeyHoles, hole1, hole2, outside
+                pokeyHoles, label, hole1, hole2, outside
             ]
         },
         name: "WSTYPE-200031",
