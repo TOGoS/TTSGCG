@@ -6,7 +6,7 @@ import { PathSegment, Path } from './Shape2D';
 
 export const blockLetterBoundingBox:TextBoundingBox = {
 	leftX: -0.5, rightX: 0.5,
-	topX: 0.5, bottomX: -0.5,
+	topY: 0.5, bottomY: -0.5,
 }
 
 export const togBlockLetters:Font = (() => {

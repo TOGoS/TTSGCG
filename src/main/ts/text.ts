@@ -7,8 +7,8 @@ import Cut, { identityTransformations } from './Cut';
 export interface TextBoundingBox {
 	leftX:number;
 	rightX:number;
-	topX:number;
-	bottomX:number;
+	topY:number;
+	bottomY:number;
 }
 
 type Shape2D = Path;
