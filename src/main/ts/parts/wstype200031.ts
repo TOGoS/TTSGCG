@@ -41,7 +41,7 @@ export default function makePart():Part {
         transformations: pokeyHolePositions,
         components: [{
             classRef: "http://ns.nuke24.net/TTSGCG/Cut/RoundHole",
-            diameter: 0.5,
+            diameter: 0,
             depth: 1,
         }],
     }
