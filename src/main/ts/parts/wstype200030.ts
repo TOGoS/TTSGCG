@@ -22,7 +22,7 @@ const flatheadNumberSixHole:CompoundCut = {
             depth: Infinity,
         }
     ]
-} 
+}
 
 export default function makePart():Part {
     const cut:Cut = {

@@ -122,6 +122,8 @@ function figureEdge(x0:number|undefined, cx:number|undefined, width:number, varN
 	throw new Error("Either '"+varName+"0' or 'c"+varName+"' must be specified for box");
 }
 
+// Creates a path that traces a rectangle counterclockwise,
+// optionally with beveled or rounded corners.
 export function boxPath(boxOptions:BoxOptions) {
 	const w = boxOptions.width;
 	const h = boxOptions.height;

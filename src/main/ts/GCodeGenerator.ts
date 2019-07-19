@@ -780,6 +780,8 @@ function translateCut(offset:Vector3D, shape:Cut, ):Cut {
 // WSTYPE-200027 = over thingy
 // WSTYPE-200028 = under thingy
 // WSTYPE-200029 = better under thingy
+// WSTYPE-200030 = a panel for connecting TOGRack rails to 12" gridrack rails
+// WSTYPE-200031 = 200029 but with M4 holes
 /*
 function makePart200027Tasks():Task[] {
 	// 1cm wide
@@ -937,6 +939,7 @@ interface JobProcessor {
 }
 
 import makeWstype200030 from './parts/wstype200030';
+import makeWstype200031 from './parts/wstype200031';
 import { flatheadNumberSixHole } from './parts/countersinktest';
 import { Path } from './Shape2D';
 import Part from './Part';
@@ -1094,6 +1097,8 @@ if( require.main == module ) {
 		*/
 		} else if( arg == '--wstype-200030' ) {
 			jobs.push(partToJob(makeWstype200030()));
+		} else if( arg == '--wstype-200031' ) {
+			jobs.push(partToJob(makeWstype200031()));
 		} else if( arg == '--test-countersink' ) {
 			jobs.push(cutToJob("Test countersink", flatheadNumberSixHole));
 		} else if( (m = /--part=(.*)$/.exec(arg)) ) {
