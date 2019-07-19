@@ -129,9 +129,10 @@ abstract class ShapeProcessorBase {
 	protected transformVector(vec:ModelVector):NativePosition {
 		return vectormath.transformVector(this.currentTransformation, vec) as NativePosition;
 	}
-	protected transformAndClampVector(vec:ModelVector):NativePosition {
+	protected transformAndClampVector(vec:ModelVector, minZ=-Infinity):NativePosition {
+		minZ = Math.max(minZ, this.minZ);
 		const pos = this.transformVector(vec);
-		return pos.z >= this.minZ ? pos : {x:pos.x, y:pos.y, z:this.minZ} as NativePosition;
+		return pos.z >= minZ ? pos : {x:pos.x, y:pos.y, z:minZ} as NativePosition;
 	}
 	protected transformHorizontalDistance(rad:ModelDistance):NativeDistance {
 		return this.currentHorizontalScale * rad as NativeDistance;
@@ -377,6 +378,9 @@ class GCodeGenerator extends ShapeProcessorBase {
 			this.g01(undefined, undefined, pos.z);
 		}
 	}
+	zoomToSurface(modelPos:ModelVector):void {
+		this.zoomToNative(this.transformAndClampVector(modelPos, 0));
+	}
 	zoomTo(modelPos:ModelVector):void {
 		this.zoomToNative(this.transformAndClampVector(modelPos));
 	}
@@ -415,11 +419,10 @@ class GCodeGenerator extends ShapeProcessorBase {
 		let targetZ = this.clampedZ;
 		let seg0 = path.segments[0];
 		let startPoint = path.vertexes[seg0.startVertexIndex];
-		this.zoomTo(startPoint as ModelVector);
-		let currentZ = 0;
+		let currentZ = 0 - this.stepDown;
 		let direction = 1;
+		this.zoomToSurface(startPoint as ModelVector);
 		while( currentZ > targetZ ) {
-			currentZ = Math.max(targetZ, currentZ - this.stepDown);
 			this.emitComment("Step down to "+this.fmtDist(currentZ));
 			this.g01(undefined, undefined, currentZ);
 			let startPosition = this._position;
@@ -444,6 +447,7 @@ class GCodeGenerator extends ShapeProcessorBase {
 			} else {
 				this.emitComment("Path closed!")
 			}
+			currentZ = Math.max(targetZ, currentZ - this.stepDown);
 		}
 		this.zoomToZoomHeight();
 	}
@@ -464,7 +468,7 @@ class GCodeGenerator extends ShapeProcessorBase {
 		let circleRadius = diameter/2;
 		if( circleRadius <= 0 ) {
 			this.emitComment(diameter + this.jobContext.nativeUnit.abbreviation + " hole will be a banger");
-			this.zoomTo({x:0,y:0,z:0} as ModelVector);
+			this.zoomToSurface({x:0,y:0,z:0} as ModelVector);
 			this.bangHole(this.clampedDepth, this.stepDown, this.stepDown/2 as NativeDistance);
 		} else {
 			this.emitComment(diameter + this.jobContext.nativeUnit.abbreviation + " hole will be circles");
