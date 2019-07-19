@@ -102,9 +102,9 @@ export const togBlockLetters:Font = (() => {
 
 export const togLineLetters:Font = (() => {
 	const vertexes:Vector3D[] = [];
-	for( let y=0; y<5; ++y ) {
-		for( let x=0; x<5; ++x ) {
-			vertexes.push({x: (x+1)/6 - 0.5, y: 0.5 - (y+1)/6, z:0});
+	for( let y=0.5; y<=4.5; ++y ) {
+		for( let x=0.5; x<=4.5; ++x ) {
+			vertexes.push({x: x/5 - 0.5, y: 0.5 - y/5, z:0});
 		}
 	}
 
@@ -244,8 +244,11 @@ export const togLineLetters:Font = (() => {
 			"M": mkblok([[ea,aa,cc,ae,ee]]),
 			"N": mkblok([[ea,aa,ee,ae]]),
 			"O": mkblok([[ac,[cleft,cc],ac]]),
+			"P": mkblok([[ca,aa,ad,[cright,bd],cd,ca,ea]]),
 			"S": mkblok([[ae,ab,[cleft,bb],cb,cd,[cright,dd],ed,ea]]),
 			"T": mkblok([[aa,ae],[ac,ec]]),
+			"W": mkblok([[aa,da,[cleft,db],dc,[cleft,dd],de,ae],[ac,dc]]),
+			"Y": mkblok([[aa,cc,ec,cc,ae]]),
 			"-": mkblok([[ca,ce]]),
 			"0": mkblok([[ac,[cleft,cc],ac],[cc]]),
 			"1": mkblok([[ba,ac,ec],[ea,ee]]),
