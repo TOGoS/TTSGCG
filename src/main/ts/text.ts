@@ -41,7 +41,6 @@ export function textToCut(text:string, charset:Font):Cut {
 			curLine.push(char);
 		}
 	}
-	console.error(`Lineheight ${lineHeight}`)
 	if( curLine ) lines.push(curLine);
 	let right = 0;
 	let top = -lineTop;;
