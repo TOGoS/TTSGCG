@@ -190,6 +190,7 @@ abstract class ShapeProcessorBase {
 	abstract processConicPocket(cp:ConicPocket):void;
 
 	processCut(cut:Cut) {
+		if( cut.comment ) this.emitComment(cut.comment);
 		switch(cut.classRef) {
 		case "http://ns.nuke24.net/TTSGCG/Cut/Compound":
 			return this.withCutUnit(cut.unit, () =>

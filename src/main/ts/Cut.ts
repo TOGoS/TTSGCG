@@ -35,7 +35,7 @@ export interface RoundHole {
 	diameter: number;
 	depth: number;
 }
-type Cut = TracePath|CompoundCut|RoundHole|ConicPocket;
+type Cut = (TracePath|CompoundCut|RoundHole|ConicPocket) & {comment?: string};
 export default Cut;
 
 export const identityTransformations = [identityTransformation];
