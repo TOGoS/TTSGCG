@@ -225,6 +225,7 @@ export const togLineLetters:Font = (() => {
 			}
 		}
 	}
+	const oCut:PathOp[] = [ac,[cleft,cc],ec,[cleft,cc],ac];
 	// Priotity letters:
 	// "TTSGCG"
 	// "WSITEM-[0..9]"
@@ -243,14 +244,14 @@ export const togLineLetters:Font = (() => {
 			"J": mkblok([[aa,ae],[ca,[cleft,cc],ce,ae]]),
 			"M": mkblok([[ea,aa,cc,ae,ee]]),
 			"N": mkblok([[ea,aa,ee,ae]]),
-			"O": mkblok([[ac,[cleft,cc],ac]]),
+			"O": mkblok([oCut]),
 			"P": mkblok([[ca,aa,ad,[cright,bd],cd,ca,ea]]),
 			"S": mkblok([[ae,ab,[cleft,bb],cb,cd,[cright,dd],ed,ea]]),
 			"T": mkblok([[aa,ae],[ac,ec]]),
 			"W": mkblok([[aa,da,[cleft,db],dc,[cleft,dd],de,ae],[ac,dc]]),
 			"Y": mkblok([[aa,cc,ec,cc,ae]]),
 			"-": mkblok([[ca,ce]]),
-			"0": mkblok([[ac,[cleft,cc],ac],[cc]]),
+			"0": mkblok([oCut,[cc]]),
 			"1": mkblok([[ba,ac,ec],[ea,ee]]),
 			"2": mkblok([[aa,ad,[cright,bd],cd,cc,[cleft,ec],ea,ee]]),
 			"3": mkblok([[aa,ad,[cright,bd],cd,[cright,dd],ed,ea],[ca,cd]]),
