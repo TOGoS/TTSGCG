@@ -24,6 +24,10 @@ const flatheadNumberSixHole:CompoundCut = {
     ]
 }
 
+function mapMany<T,Y>( stuff:T[], cb:(thing:T)=>Y[] ):Y[] {
+    return stuff.map(cb).reduce((a,b)=>a.concat(b));
+}
+
 export default function makePart():Part {
     const cut:Cut = {
         classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
@@ -34,7 +38,7 @@ export default function makePart():Part {
                 classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
                 transformations: [0,1,2,3,4,5].map((col) => {
                     return [0,1,2,3,4,5,6,7,8].map((row) => {
-                        if( col == 1 && row % 3 == 1 ) return [];
+                        if( col % 3 == 1 && row % 3 == 1 ) return [];
                         return [{x:col * 0.5 + 0.25, y:row * 0.5 + 0.25}];
                     }).reduce(cat);
                 }).reduce(cat),
@@ -42,7 +46,7 @@ export default function makePart():Part {
             },
             {
                 classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
-                transformations: [0,1,2].map((row) => ({x:0.75, y:0.75 + 1.5 * row})),
+                transformations: mapMany([0,1,2], (row) => [0,1].map((col) => ({x:0.75 + 1.5 * col, y:0.75 + 1.5 * row}))),
                 components: [{
                     classRef: "http://ns.nuke24.net/TTSGCG/Cut/RoundHole",
                     diameter: 3/8,
