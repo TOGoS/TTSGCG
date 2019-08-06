@@ -8,7 +8,8 @@ import { CornerStyleName, PathBuilder, boxPath, circlePath, quarterTurn } from '
 import { textToCut } from './text';
 import { getFont } from './fonts';
 import { decode } from 'punycode';
-import RationalNumber, { multiplyRationals, parseRationalNumber, addRationals, toRationalNumber } from './RationalNumber';
+import RationalNumber from './RationalNumber';
+import * as rational from './RationalNumber';
 import ComplexAmount, { decodeComplexAmount, addComplexAmounts, scaleComplexAmount, parseComplexAmount, formatComplexAmount } from './ComplexAmount';
 import Transformish, { toTransformationMatrix3D } from './Transformish';
 
@@ -26,7 +27,7 @@ const INCH : Unit = {
 };
 
 const MM : Unit = {
-	unitValue: toRationalNumber(1),
+	unitValue: rational.from(1),
 	name: "millimeter",
 	abbreviation: "mm",
 	aliases: ["millimeter", "mm", "millimeters"],
@@ -756,7 +757,7 @@ function makeTogPanelPart(options:TOGPanelOptions):Part {
 */
 
 function parseNumber(numStr:string):number {
-	let rn = parseRationalNumber(numStr);
+	let rn = rational.parse(numStr);
 	return rn.numerator / rn.denominator;
 }
 

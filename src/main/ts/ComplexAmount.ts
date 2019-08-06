@@ -1,15 +1,15 @@
-import RationalNumber, { toRationalNumber, multiplyRationals, addRationals, parseRationalNumber, formatRationalNumber } from './RationalNumber';
+import RationalNumber, { from, multiply, add, parse, format } from './RationalNumber';
 import Unit, { UnitTable, getUnit } from './Unit';
 
 export default interface ComplexAmount {[unitName:string]: RationalNumber}
 
 export function scaleComplexAmount(a:ComplexAmount, s:number|RationalNumber):ComplexAmount {
-	s = toRationalNumber(s);
+	s = from(s);
 	if( s.numerator == s.denominator ) return a;
 
 	let res:ComplexAmount = {};
 	for( let unitCode in a ) {
-		res[unitCode] = multiplyRationals(a[unitCode], s);
+		res[unitCode] = multiply(a[unitCode], s);
 	}
 	return res;
 }
@@ -23,7 +23,7 @@ export function addComplexAmounts(a:ComplexAmount, b:ComplexAmount):ComplexAmoun
 		if( res[unitCode] == undefined ) {
 			res[unitCode] = b[unitCode];
 		} else {
-			res[unitCode] = addRationals(res[unitCode], b[unitCode]);
+			res[unitCode] = add(res[unitCode], b[unitCode]);
 		}
 	}
 	return res;
@@ -32,7 +32,7 @@ export function addComplexAmounts(a:ComplexAmount, b:ComplexAmount):ComplexAmoun
 export function formatComplexAmount(amt:ComplexAmount):string {
     let parts:string[] = [];
     for( let u in amt ) {
-        parts.push(formatRationalNumber(amt[u])+u);
+        parts.push(format(amt[u])+u);
     }
     return parts.join("+");
 }
@@ -43,7 +43,7 @@ export function parseComplexAmount(caStr:string, unitTable:UnitTable):ComplexAmo
     let unitName:string = m[2];
     let unit = getUnit(unitName, unitTable);
 	return {
-		[unitName]: parseRationalNumber(m[1])
+		[unitName]: parse(m[1])
 	}
 }
 
