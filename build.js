@@ -61,6 +61,37 @@ const amdComponentFiles = [
 	"target/amd.es5.js"
 ];
 
+function walk(dir, fileCallback) {
+	return _fsutil.readDir(dir).then( filenames => {
+		let promises = [];
+		for( let i in filenames ) {
+			const filename = filenames[i];
+			const path = dir+"/"+filename;
+			promises.push(_fsutil.stat(path).then( x => {
+				if( x.isDirectory() ) {
+					return walk(path, fileCallback);
+				} else {
+					return fileCallback(path);
+				}
+			}));
+		}
+		return Promise.all(promises);
+	});
+}
+
+function runUnitTests(cmdRunner, verbose) {
+	return walk("target/cjs", (path) => {
+		if( /.*[Tt]est\.js$/.exec(path) ) {
+			return cmdRunner.doCmd(["node", path]).then( result => {
+				console.error(path+" ran successfully");
+			}, err => {
+				console.error(path+" failed: "+err.message);
+				return Promise.reject(err);
+			})
+		}
+	})
+}
+
 builder.targets = {
 	"default": {
 		prereqs: ["js-libs"]
@@ -103,12 +134,12 @@ builder.targets = {
 	"run-unit-tests": {
 		isFile: false,
 		prereqs: ["target/cjs"],
-		invoke: (ctx) => ctx.builder.doCmd("find target/cjs -iname \"*test.js\" | xargs -n 1 node")
+		invoke: (ctx) => runUnitTests(ctx.builder, false)
 	},
 	"run-unit-tests-verbosely": {
 		isFile: false,
 		prereqs: ["target/cjs"],
-		invoke: (ctx) => ctx.builder.doCmd("find target/cjs -iname \"*test.js\" | xargs -n 1 -I\"{}\" node \"{}\" -v")
+		invoke: (ctx) => runUnitTests(ctx.builder, true)
 	},
 	"js-libs": {
 		isFile: false,
