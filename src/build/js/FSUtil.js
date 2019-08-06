@@ -5,7 +5,6 @@
 // Otherwise, feel free to remove this comment.
 Object.defineProperty(exports, "__esModule", { value: true });
 ///<reference types="node" />
-///<reference path="Promise.d.ts"/>
 var fs = require("fs");
 var promises_1 = require("./promises");
 function stat(file) {
@@ -19,6 +18,30 @@ function stat(file) {
     });
 }
 exports.stat = stat;
+/** Recursively walk a directory, applying fileCallback to every non-directory within it.
+ *  The returned promise resolves after all callbacks' returned promises have resolved */
+function walkDir(dirPath, fileCallback) {
+    return readDir(dirPath).then(function (filenames) {
+        var promises = [];
+        var _loop_1 = function (i) {
+            var filename = filenames[i];
+            var path = dirPath + "/" + filename;
+            promises.push(stat(path).then(function (x) {
+                if (x.isDirectory()) {
+                    return walkDir(path, fileCallback);
+                }
+                else {
+                    return fileCallback(path);
+                }
+            }));
+        };
+        for (var i in filenames) {
+            _loop_1(i);
+        }
+        return Promise.all(promises);
+    });
+}
+exports.walkDir = walkDir;
 function readFile(file, options) {
     if (options === void 0) { options = {}; }
     return new Promise(function (resolve, reject) {
@@ -185,11 +208,11 @@ function mkdirR(dir) {
     }
     var comps = dir.split('/');
     var prom = Promise.resolve();
-    var _loop_1 = function (i) {
+    var _loop_2 = function (i) {
         prom = prom.then(function () { return mkdir(prefix + comps.slice(0, i).join('/')); });
     };
     for (var i = 1; i <= comps.length; ++i) {
-        _loop_1(i);
+        _loop_2(i);
     }
     return prom;
 }
@@ -237,8 +260,9 @@ function mtimeR(fileOrDir) {
                 return Promise.all(mtimePromz).then(function (mtimes) {
                     var maxMtime = stats.mtime;
                     for (var m in mtimes) {
-                        if (mtimes[m] != undefined && mtimes[m] > maxMtime) {
-                            maxMtime = mtimes[m];
+                        var mtime = mtimes[m];
+                        if (mtime != undefined && mtime > maxMtime) {
+                            maxMtime = mtime;
                         }
                     }
                     return maxMtime;
