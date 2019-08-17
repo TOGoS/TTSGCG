@@ -952,7 +952,6 @@ import { type } from 'os';
 import Unit, { findUnit, UnitTable, getUnit } from './Unit';
 
 if( require.main == module ) {
-	let jobs:Job[] = [];
 	let includeOutline = true;
 	let includeHoles = true;
 	let includeLabel = true;
@@ -1010,6 +1009,8 @@ if( require.main == module ) {
 	const empty = function(s:string|undefined):boolean {
 		return s == undefined || s.length == 0;
 	}
+
+	const jobPromises:Promise<Job>[] = [];
 
 	for( let i=2; i<process.argv.length; ++i ) {
 		let m;
@@ -1101,13 +1102,18 @@ if( require.main == module ) {
 			});
 		*/
 		} else if( arg == '--wstype-200030' ) {
-			jobs.push(partToJob(makeWstype200030()));
+			jobPromises.push(Promise.resolve(partToJob(makeWstype200030())));
 		} else if( arg == '--wstype-200031' ) {
-			jobs.push(partToJob(makeWstype200031()));
+			jobPromises.push(Promise.resolve(partToJob(makeWstype200031())));
 		} else if( arg == '--test-countersink' ) {
-			jobs.push(cutToJob("Test countersink", flatheadNumberSixHole));
+			jobPromises.push(Promise.resolve(cutToJob("Test countersink", flatheadNumberSixHole)));
 		} else if( (m = /--part=(.*)$/.exec(arg)) ) {
 			// TODO: Use dynamic imports to load the part
+			jobPromises.push(
+				import("./parts/"+m[1]+".js").then((mod) => {
+					return partToJob(mod.default());
+				})
+			);
 			//jobs.push(partToJob(makeWstype200030()));
 		} else {
 			console.error("Unrecognized argument: "+arg);
@@ -1126,27 +1132,28 @@ if( require.main == module ) {
 	};
 
 	let bf = new BoundsFinder(jobContext);
-	bf.processJobs(jobs);
-
-	switch( outputMode ) {
-	case "bounds":
-		console.log("x: "+bf.minX +".."+bf.maxX);
-		console.log("y: "+bf.minY +".."+bf.maxY);
-		console.log("z: "+bf.minZ +".."+bf.maxZ);
-		break;
-	case "gcode":
-		let gcg = new GCodeGenerator(jobContext);
-		gcg.commentMode = gCodeCommentMode;
-		gcg.emitSetupCode();
-		gcg.processJobs(jobs);
-		gcg.emitShutdownCode();
-		break;
-	case "svg":
-		let padded = aabb.pad(bf, decodeComplexAmount(padding, nativeUnit, distanceUnits));
-		let sg = new SVGGenerator(jobContext);
-		sg.emitHeader(padded);
-		sg.processJobs(jobs);
-		sg.emitFooter();
-		break;
-	}
+	Promise.all(jobPromises).then( (jobs:Job[]) => {
+		bf.processJobs(jobs);
+		switch( outputMode ) {
+		case "bounds":
+			console.log("x: "+bf.minX +".."+bf.maxX);
+			console.log("y: "+bf.minY +".."+bf.maxY);
+			console.log("z: "+bf.minZ +".."+bf.maxZ);
+			break;
+		case "gcode":
+			let gcg = new GCodeGenerator(jobContext);
+			gcg.commentMode = gCodeCommentMode;
+			gcg.emitSetupCode();
+			gcg.processJobs(jobs);
+			gcg.emitShutdownCode();
+			break;
+		case "svg":
+			let padded = aabb.pad(bf, decodeComplexAmount(padding, nativeUnit, distanceUnits));
+			let sg = new SVGGenerator(jobContext);
+			sg.emitHeader(padded);
+			sg.processJobs(jobs);
+			sg.emitFooter();
+			break;
+		}
+	});
 }
