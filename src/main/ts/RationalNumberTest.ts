@@ -1,4 +1,4 @@
-import RationalNumber, { simplify as simplifyRationalNumber, format, add } from "./RationalNumber";
+import RationalNumber, { simplify as simplifyRationalNumber, format, add, parse } from "./RationalNumber";
 
 function assertEquals(expected:any, actual:any, onErrorMessage:string) {
     if( actual != expected ) {
@@ -9,8 +9,17 @@ function assertEquals(expected:any, actual:any, onErrorMessage:string) {
 function assertEqualsRat(expected:RationalNumber, actual:RationalNumber, description:string) {
     assertEquals(expected.numerator, actual.numerator, description+" numerator");
     assertEquals(expected.denominator, actual.denominator, description+" denominator");
-
 }
+
+function _testParse(expected:RationalNumber, input:string) {
+    assertEqualsRat(expected, parse(input), "parse('"+input+"')");
+}
+
+function testParse() {
+    _testParse(rat(125,1000), "0.125");
+    _testParse(rat(-1,3), "-1/3");
+}
+
 
 function _testSimplify(expected:RationalNumber, input:RationalNumber) {
     const formatted = format(input);
@@ -51,6 +60,7 @@ function testFormat() {
     _testFormat("-13/8", rat(-13,8));
 }
 
+testParse();
 testSimplify();
 testAdd();
 testFormat();

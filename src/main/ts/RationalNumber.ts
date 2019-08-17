@@ -5,7 +5,7 @@ export default interface RationalNumber {
 
 const sumRegex = /.+\+.+/;
 const rationalNumberRegex = /.+\/.+/;
-const decimalNumberRegex = /^([+-]?\d+(?:\.(\d+))?)?/;
+const decimalNumberRegex = /^(?:([+-]?\d)+(?:\.(\d+))?)?/;
 
 function gcd(a: number, b: number) {
 	if( a % 1 != 0 || b % 1 != 0 ) return 1; // Don't fool with non-integers
@@ -52,7 +52,7 @@ export function parse(numStr:string):RationalNumber {
 			onesStr += decPart;
 			decimalPlaces = decPart.length;
 		}
-		return {numerator: +numStr, denominator: Math.pow(10,decimalPlaces)};
+		return {numerator: +onesStr, denominator: Math.pow(10,decimalPlaces)};
 	} else {
 		throw new Error("Failed to parse '"+numStr+"' as number");
 	}
