@@ -7,7 +7,6 @@ import Cut, { identityTransformations, ConicPocket } from './Cut';
 import { CornerStyleName, PathBuilder, boxPath, circlePath, quarterTurn } from './pathutils';
 import { textToCut } from './text';
 import { getFont } from './fonts';
-import { decode } from 'punycode';
 import RationalNumber from './RationalNumber';
 import * as rational from './RationalNumber';
 import ComplexAmount, { decodeComplexAmount, addComplexAmounts, scaleComplexAmount, parseComplexAmount, formatComplexAmount } from './ComplexAmount';
