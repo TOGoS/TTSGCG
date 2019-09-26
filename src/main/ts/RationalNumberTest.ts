@@ -18,6 +18,8 @@ function _testParse(expected:RationalNumber, input:string) {
 function testParse() {
     _testParse(rat(125,1000), "0.125");
     _testParse(rat(-1,3), "-1/3");
+    _testParse(rat(10,1), "10");
+    _testParse(rat(1,10), "1/10");
 }
 
 

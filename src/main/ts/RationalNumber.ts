@@ -5,7 +5,7 @@ export default interface RationalNumber {
 
 const sumRegex = /.+\+.+/;
 const rationalNumberRegex = /.+\/.+/;
-const decimalNumberRegex = /^(?:([+-]?\d)+(?:\.(\d+))?)?/;
+const decimalNumberRegex = /^(?:([+-]?\d+)(?:\.(\d+))?)?/;
 
 function gcd(a: number, b: number) {
 	if( a % 1 != 0 || b % 1 != 0 ) return 1; // Don't fool with non-integers
