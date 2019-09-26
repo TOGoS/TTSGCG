@@ -8,11 +8,6 @@
     "test": "make run-unit-tests"
   },
   "dependencies": {
-    "@types/node": "^7.0.55",
-    "tshash": "^1.7.0",
-    "typescript": "^2.7.2"
-  },
-  "devDependencies": {
     "typescript": "^3.5.0",
     "@types/node": "^7.0.5"
   }
