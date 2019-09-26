@@ -3,7 +3,7 @@ import { AABB3D } from './aabb';
 import * as vectormath from './vectormath';
 import { TransformationMatrix3D, Vector3D, zeroVector } from './vectormath';
 
-import Cut, { identityTransformations, ConicPocket } from './Cut';
+import Cut, { identityTransformations, ConicPocket, Pause } from './Cut';
 import { CornerStyleName, PathBuilder, boxPath, circlePath, quarterTurn } from './pathutils';
 import { textToCut } from './text';
 import { getFont } from './fonts';
@@ -189,6 +189,7 @@ abstract class ShapeProcessorBase {
 	abstract processPath(path:Path):void;
 	abstract processCircle(diameter:ModelDistance):void;
 	abstract processConicPocket(cp:ConicPocket):void;
+	abstract processPause(p:Pause):void;
 
 	processCut(cut:Cut) {
 		if( cut.comment ) this.emitComment(cut.comment);
@@ -209,6 +210,9 @@ abstract class ShapeProcessorBase {
 			return;
 		case "http://ns.nuke24.net/TTSGCG/Cut/ConicPocket":
 			this.processConicPocket(cut);
+			return;
+		case "http://ns.nuke24.net/TTSGCG/Cut/Pause":
+			this.processPause(cut);
 			return;
 		}
 		assertUnreachable(cut);
@@ -261,6 +265,7 @@ class BoundsFinder extends ShapeProcessorBase {
 	processConicPocket(cp:ConicPocket) {
 		this.processCircle(cp.diameter);
 	}
+	processPause(p:Pause) {}
 }
 
 type GCodeCommentMode = "none"|"parentheses"|"semicolon";
@@ -513,6 +518,10 @@ class GCodeGenerator extends ShapeProcessorBase {
 		}
 	}
 
+	processPause(p:Pause) {
+		this.emit("M00");
+	}
+
 	processJob(job:Job):void {
 		this.emitBlankLine();
 		this.emitComment("Job: "+job.name);
@@ -633,6 +642,8 @@ class SVGGenerator extends ShapeProcessorBase {
 		this.emitComment("Job: "+job.name+" ("+this.currentMode+")");
 		super.processJob(job);
 	}
+
+	processPause(p:Pause) {}
 
 	processJobs(jobs:Job[]):void {
 		this.currentMode = "top";

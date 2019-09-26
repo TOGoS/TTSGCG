@@ -35,7 +35,13 @@ export interface RoundHole {
 	diameter: number;
 	depth: number;
 }
-type Cut = (TracePath|CompoundCut|RoundHole|ConicPocket) & {comment?: string};
+
+// Pause the cut until user manually unpauses
+export interface Pause {
+	classRef: "http://ns.nuke24.net/TTSGCG/Cut/Pause"
+}
+
+type Cut = (TracePath|CompoundCut|RoundHole|ConicPocket|Pause) & {comment?: string};
 export default Cut;
 
 export const identityTransformations = [identityTransformation];
