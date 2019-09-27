@@ -16,8 +16,10 @@ export interface PanelOptions {
     width : number; // In inches
 }
 
-// oled screen is 1"x0.57" (the board is about 1.06" square)
-// round momentary pushbuttons are 0.48" in diameter
+// Panel stuff:
+// - OLED screens are 1"x0.57" (the board is about 1.06" square)
+// - Round momentary pushbuttons are 0.48" in diameter
+// - Male aviation connector shaft is 0.60" (actually 15mm) in diameter
 
 const defaultPanelOptions:PanelOptions = {
     width: 12,
@@ -59,7 +61,13 @@ const defaultPanelOptions:PanelOptions = {
         },
         {
             width: 2,
-            interiorCuts: [],
+            interiorCuts: [
+                {
+                    classRef: "http://ns.nuke24.net/TTSGCG/Cut/RoundHole",
+                    diameter: 0.60,
+                    depth: Infinity,
+                }
+            ],
         },
         {
             width: 3,
@@ -86,10 +94,10 @@ export default function makePart(partOptions:PanelOptions=defaultPanelOptions):P
     };
     const gridbeamHolePositions = mapMany([0.75,length-0.75], (x) => [0.75, 2.25, 3.75].map( y => ({x, y}) ));
     const togRackHolePositions = [];
-    for( let x=0.25; x<length; x += 0.5 ) {
-        if( x <= 0.75 || x >= length - 0.75 ) continue; // Avoid gridbeam holes or getting too close to edge
-        togRackHolePositions.push({x, y: 0.75});
-        togRackHolePositions.push({x, y: 3.75});
+    for( let y=0.75; y<=3.75; y += 3 ) {
+        for( let x=1.25; x<=length-1.25; x += 0.5 ) { // Avoid gridbeam holes or getting too close to edge
+            togRackHolePositions.push({x, y});
+        }
     }
 
     const totalSubpanelWidth = partOptions.subpanels.map( panel => panel.width ).reduce( (l1,l2) => l1+l2, 0 );
