@@ -1,6 +1,7 @@
 import Cut, { identityTransformations } from "../Cut";
 import { boxPath } from "../pathutils";
 import Part from "../Part";
+import { rectangularArray, rectangularArrayPoints } from "../cuts";
 
 interface TOGPanelOptions {
     length : number; // In inches
@@ -13,17 +14,7 @@ export const togRackPanelMountingHole:Cut = {
 };
 
 export function makeTogRackPanelHoles(options:TOGPanelOptions):Cut {
-    const holePositions = [];
-    for( let y=0.25; y<=3.25; y += 3 ) {
-        for( let x=0.25; x<=options.length-0.25; x += 0.5 ) {
-            holePositions.push({x, y});
-        }
-    }
-    return {
-        classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
-        transformations: holePositions,
-        components: [togRackPanelMountingHole]
-    }
+    return rectangularArray([togRackPanelMountingHole], {x0: 0.25, y0:0.25, dx: 0.5, dy: 3.0, countX: options.length*2, countY:2});
 }
 
 export function makeTogRackPanelOutline(options:TOGPanelOptions):Cut {
@@ -39,7 +30,6 @@ export function makeTogRackPanelOutline(options:TOGPanelOptions):Cut {
                 cornerStyleName: "Round"
             },
         })
-
     }
 }
 

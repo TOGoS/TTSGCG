@@ -10,7 +10,7 @@ function noZero(x:number):number {
     return x == 0 ? 1 : x;
 }
 
-export function rectangularArray(cut:Cut, options:ArrayOptions):Cut {
+export function rectangularArrayPoints(options:ArrayOptions):SimpleTransformation2D[] {
     const dx = noZero(options.dx);
     const dy = noZero(options.dy);
     const x0 = options.x0;
@@ -31,9 +31,13 @@ export function rectangularArray(cut:Cut, options:ArrayOptions):Cut {
             }
         }
     }
+    return points;
+}
+
+export function rectangularArray(cuts:Cut[], options:ArrayOptions):Cut {
     return {
         classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
-        transformations: points,
-        components: [cut]
-    }
+        transformations: rectangularArrayPoints(options),
+        components: cuts,
+    };
 }
