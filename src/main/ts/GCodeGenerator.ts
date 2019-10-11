@@ -16,41 +16,6 @@ function vectorToString(v:Vector3D, digits=4):string {
 	return "<"+v.x.toFixed(digits)+","+v.y.toFixed(digits)+","+v.z.toFixed(digits)+">";
 }
 
-////
-
-const INCH : Unit = {
-	unitValue: {numerator:254, denominator:10},
-	name: "inch",
-	abbreviation: "in",
-	aliases: ["inch", "in", '"', "inch", "inches"],
-};
-
-const MM : Unit = {
-	unitValue: rational.from(1),
-	name: "millimeter",
-	abbreviation: "mm",
-	aliases: ["millimeter", "mm", "millimeters"],
-};
-
-const distanceUnits:{[k:string]:Unit} = {
-	"inch": INCH,
-	"millimeter": MM,
-}
-
-type DistanceUnitName = "inch"|"millimeter"|"board";
-
-const throughDepth:ComplexAmount = {"board":{numerator:1,denominator:1}};
-
-function amount(unitName:string, numerator:number, denominator:number=1):ComplexAmount {
-	return { [unitName]: {numerator, denominator} };
-}
-function inches(numerator:number, denominator:number=1):ComplexAmount {
-	return amount("inch", numerator, denominator);
-}
-function millimeters(numerator:number, denominator:number=1):ComplexAmount {
-	return amount("millimeter", numerator, denominator);
-}
-
 /**
  * A job is a bunch of stuff that the machine should be able to do all at once.
  * Different jobs may require bit changes or other setup.
@@ -280,9 +245,9 @@ class GCodeGenerator extends ShapeProcessorBase {
 	constructor(jobContext:JobContext) {
 		super(jobContext);
 		this.emitter = console.log.bind(console);
-		this.zoomHeight = this.decodeComplexAmount(inches(1/4));
-		this.minimumFastZ = this.decodeComplexAmount(inches(1/16));
-		this.stepDown = this.decodeComplexAmount(inches(0.02));
+		this.zoomHeight = this.decodeComplexAmount(inches(1, 4));
+		this.minimumFastZ = this.decodeComplexAmount(inches(1, 16));
+		this.stepDown = this.decodeComplexAmount(inches(2, 100));
 	}
 	emit(line:string):void {
 		this.emitter(line);
@@ -961,6 +926,7 @@ import { Path } from './Shape2D';
 import Part from './Part';
 import { type } from 'os';
 import Unit, { findUnit, UnitTable, getUnit } from './Unit';
+import { distanceUnits, inches, MM, millimeters } from './units';
 
 if( require.main == module ) {
 	let includeOutline = true;
