@@ -29,7 +29,6 @@ export default function makePart():Part {
             unit: {"inches": {numerator:1, denominator:1}},
             transformations: identityTransformations,
             components: [
-                makeTogRackPanelOutlineAndHoles({length: 3.5}),
                 rectangularArray([screwHole], {
                     x0: 0.75, y0: 0.75,
                     countX: 2, dx: 2,
@@ -39,7 +38,8 @@ export default function makePart():Part {
                     x0: 3.5/2, y0: 0.75,
                     countX: 1, dx: 1,
                     countY: 5, dy: 0.5
-                })
+                }),
+                makeTogRackPanelOutlineAndHoles({length: 3.5}),
             ],
         },
         name: "WSTYPE-200048"
