@@ -1166,5 +1166,8 @@ if( require.main == module ) {
 			sg.emitFooter();
 			break;
 		}
+	}).catch( (error:Error) => {
+		console.error(error.stack);
+		process.exitCode = 1;
 	});
 }
