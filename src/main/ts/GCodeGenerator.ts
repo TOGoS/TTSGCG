@@ -234,32 +234,31 @@ class BoundsFinder extends ShapeProcessorBase {
 }
 
 type GCodeCommentMode = "none"|"parentheses"|"semicolon";
+type StringEmitter = (s:string)=>unknown;
 
 class GCodeGenerator extends ShapeProcessorBase {
-	public emitter:(s:string)=>string;
 	protected zoomHeight:NativeDistance;
 	protected minimumFastZ:number;
 	protected stepDown:NativeDistance;
 	public commentMode:GCodeCommentMode = "parentheses";
 	protected _position = {x:0, y:0, z:0};
-	constructor(jobContext:JobContext) {
+	constructor(jobContext:JobContext, public emitter:StringEmitter) {
 		super(jobContext);
-		this.emitter = console.log.bind(console);
 		this.zoomHeight = this.decodeComplexAmount(inches(1, 4));
 		this.minimumFastZ = this.decodeComplexAmount(inches(1, 16));
 		this.stepDown = this.decodeComplexAmount(inches(2, 100));
 	}
-	emit(line:string):void {
-		this.emitter(line);
+	emitLine(line:string):void {
+		this.emitter(line+"\n");
 	}
 	emitBlankLine():void {
-		this.emit("");
+		this.emitLine("");
 	}
 	emitComment(c:string):void {
 		switch(this.commentMode) {
 		case "none": return;
-		case "parentheses": return this.emit("("+c+")");
-		case "semicolon": return this.emit("; "+c);
+		case "parentheses": return this.emitLine("("+c+")");
+		case "semicolon": return this.emitLine("; "+c);
 		}
 		assertUnreachable(this.commentMode);
 	}
@@ -282,7 +281,7 @@ class GCodeGenerator extends ShapeProcessorBase {
 		if( x != undefined ) line += " X"+this.fmtDist(x);
 		if( y != undefined ) line += " Y"+this.fmtDist(y);
 		if( z != undefined ) line += " Z"+this.fmtDist(z);
-		this.emit(line)
+		this.emitLine(line)
 		this.updatePosition(x,y,z);
 	}
 	g00(x:number|undefined, y:number|undefined, z:number|undefined=undefined) {
@@ -303,7 +302,7 @@ class GCodeGenerator extends ShapeProcessorBase {
 		if( x != undefined ) line += " X"+this.fmtDist(x);
 		if( y != undefined ) line += " Y"+this.fmtDist(y);
 		if( z != undefined ) line += " Z"+this.fmtDist(z);
-		this.emit(line);
+		this.emitLine(line);
 		this.updatePosition(x,y,z);
 	}
 	g02(x:number|undefined, y:number|undefined, z:number|undefined, i:number, j:number, k:number) {
@@ -313,19 +312,19 @@ class GCodeGenerator extends ShapeProcessorBase {
 		this.doCurve("G03",x,y,z,i,j,k);
 	}
 	emitSetupCode():void {
-		this.emit("G90");
+		this.emitLine("G90");
 		let speedInPerMinute = 3;
 		if( this.jobContext.nativeUnit.name == "inch" ) {
-			this.emit("G20");
-			this.emit("F"+speedInPerMinute);
+			this.emitLine("G20");
+			this.emitLine("F"+speedInPerMinute);
 		} else if( this.jobContext.nativeUnit.name == "millimeter" ) {
-			this.emit("G21");
-			this.emit("F"+this.fmtDist(speedInPerMinute * 25.4));
+			this.emitLine("G21");
+			this.emitLine("F"+this.fmtDist(speedInPerMinute * 25.4));
 		} else {
 			throw new Error("GCodeGenerator can't handle native unit '"+this.jobContext.nativeUnit.name+"'");
 		}
-		this.emit("S1000");
-		this.emit("M03");
+		this.emitLine("S1000");
+		this.emitLine("M03");
 		this.zoomToZoomHeight();
 		this.emitBlankLine();
 		this.emitComment("Bit tip diameter: "+formatComplexAmount(this.jobContext.routerBit.diameterFunction({})));
@@ -334,7 +333,7 @@ class GCodeGenerator extends ShapeProcessorBase {
 		this.emitBlankLine();
 		this.emitComment("Job done!");
 		this.zoomToZoomHeight();
-		this.emit("M05");
+		this.emitLine("M05");
 	}
 	zoomToZoomHeight():void {
 		this.g00(undefined, undefined, this.zoomHeight);
@@ -484,7 +483,7 @@ class GCodeGenerator extends ShapeProcessorBase {
 	}
 
 	processPause(p:Pause) {
-		this.emit("M00");
+		this.emitLine("M00");
 	}
 
 	processJob(job:Job):void {
@@ -506,7 +505,6 @@ function htmlEscape(text:string) {
 type SVGCutProcessingMode = "top"|"bottom";
 
 class SVGGenerator extends ShapeProcessorBase {
-	public emitter:(s:string)=>string;
 	protected bottomColor = "black";
 	protected cutColor = "gray";
 	protected currentMode : SVGCutProcessingMode;
@@ -527,9 +525,8 @@ class SVGGenerator extends ShapeProcessorBase {
 		return this.bitDiameterAtDepth(this.currentMode == "bottom" ? 0 : this.clampedDepth);
 	}
 
-	constructor(jobContext:JobContext) {
+	constructor(jobContext:JobContext, public emitter:StringEmitter) {
 		super(jobContext);
-		this.emitter = console.log.bind(console);
 	}
 
 	openElement(name:string, attrs:{[k:string]: string|number}={}, close:boolean=false) {
@@ -927,6 +924,10 @@ import Part from './Part';
 import { type } from 'os';
 import Unit, { findUnit, UnitTable, getUnit } from './Unit';
 import { distanceUnits, inches, MM, millimeters } from './units';
+import { open, fstat, createWriteStream, WriteStream } from 'fs';
+import { Writable } from 'stream';
+
+type OutputFormatID = "svg"|"gcode"|"bounds";
 
 if( require.main == module ) {
 	let includeOutline = true;
@@ -943,7 +944,8 @@ if( require.main == module ) {
 	let labelScale = 2.5/6; // Fits "TTSGCG" into 2.5 inches :P
 	let length = 1;
 	let labelDirection:LatOrLong = "lateral";
-	let outputMode:"svg"|"gcode"|"bounds" = "gcode";
+
+	let outputFiles:{[filename:string]: OutputFormatID} = {};
 	let padding:ComplexAmount = inches(0.5);
 	let offset:Vector3D = {x:0, y:0, z:0};
 	let rotation:number = 0;
@@ -1032,13 +1034,17 @@ if( require.main == module ) {
 		} else if( (m = /^--padding=(.*)$/.exec(arg)) ) {
 			padding = parseComplexAmount(m[1], distanceUnits);
 		} else if( arg == "--output-bounds" ) {
-			outputMode = "bounds";
-		} else if( arg == "--output-gcode" ) {
-			outputMode = "gcode";
+			outputFiles["-"] = "bounds";
 		} else if( (m = /^--gcode-comment-mode=(none|semicolon|parentheses)$/.exec(arg)) ) {
 			gCodeCommentMode = (m[1] as GCodeCommentMode)
+		} else if( arg == "--output-gcode" ) {
+			outputFiles["-"] = "gcode";
+		} else if( (m = /^--output-gcode=(.*)$/.exec(arg))) {
+			outputFiles[m[1]] = "gcode";
 		} else if( arg == "--output-svg" ) {
-			outputMode = "svg";
+			outputFiles["-"] = "svg";
+		} else if( (m = /^--output-svg=(.*)$/.exec(arg))) {
+			outputFiles[m[1]] = "svg";
 		/*
 		} else if( arg == '--tog-panel' ) {
 			jobs.push({
@@ -1111,27 +1117,45 @@ if( require.main == module ) {
 	let bf = new BoundsFinder(jobContext);
 	Promise.all(jobPromises).then( (jobs:Job[]) => {
 		bf.processJobs(jobs);
-		switch( outputMode ) {
-		case "bounds":
-			console.log("x: "+bf.minX +".."+bf.maxX);
-			console.log("y: "+bf.minY +".."+bf.maxY);
-			console.log("z: "+bf.minZ +".."+bf.maxZ);
-			break;
-		case "gcode":
-			let gcg = new GCodeGenerator(jobContext);
-			gcg.commentMode = gCodeCommentMode;
-			gcg.emitSetupCode();
-			gcg.processJobs(jobs);
-			gcg.emitShutdownCode();
-			break;
-		case "svg":
-			let padded = aabb.pad(bf, decodeComplexAmount(padding, nativeUnit, distanceUnits));
-			let sg = new SVGGenerator(jobContext);
-			sg.emitHeader(padded);
-			sg.processJobs(jobs);
-			sg.emitFooter();
-			break;
+		let outputPromises:Promise<unknown>[] = [];
+		for( let f in outputFiles ) {
+			const outputMode = outputFiles[f];
+			outputPromises.push(new Promise<Writable>((resolve,reject) => {
+				if( f == "-" ) {
+					resolve(process.stdout);
+					return;
+				}
+				open(f, "w", (err:Error,fd:number) => {
+					if( err ) reject(err);
+					else resolve(createWriteStream(f, {encoding:"utf-8", fd}));
+				});
+			}).then( (outputStream:WriteStream) => {
+				const emitter:StringEmitter = (s:string) => outputStream.write(s);
+				switch( outputMode ) {
+					case "bounds":
+						outputStream.write("x: "+bf.minX +".."+bf.maxX);
+						outputStream.write("y: "+bf.minY +".."+bf.maxY);
+						outputStream.write("z: "+bf.minZ +".."+bf.maxZ);
+						break;
+					case "gcode":
+						let gcg = new GCodeGenerator(jobContext, emitter);
+						gcg.commentMode = gCodeCommentMode;
+						gcg.emitSetupCode();
+						gcg.processJobs(jobs);
+						gcg.emitShutdownCode();
+						break;
+					case "svg":
+						let padded = aabb.pad(bf, decodeComplexAmount(padding, nativeUnit, distanceUnits));
+						let sg = new SVGGenerator(jobContext, emitter);
+						sg.emitHeader(padded);
+						sg.processJobs(jobs);
+						sg.emitFooter();
+						break;
+					}
+				}
+			));
 		}
+		return Promise.all(outputPromises);
 	}).catch( (error:Error) => {
 		console.error(error.stack);
 		process.exitCode = 1;
