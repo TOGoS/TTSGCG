@@ -3,11 +3,8 @@ import { AABB3D } from './aabb';
 import * as vectormath from './vectormath';
 import { TransformationMatrix3D, Vector3D, zeroVector } from './vectormath';
 
-import Cut, { identityTransformations, ConicPocket, Pause } from './Cut';
-import { CornerStyleName, PathBuilder, boxPath, circlePath, quarterTurn } from './pathutils';
-import { textToCut } from './text';
-import { getFont } from './fonts';
-import RationalNumber from './RationalNumber';
+import Cut, { ConicPocket, Pause } from './Cut';
+import { CornerStyleName, circlePath } from './pathutils';
 import * as rational from './RationalNumber';
 import ComplexAmount, { decodeComplexAmount, addComplexAmounts, scaleComplexAmount, parseComplexAmount, formatComplexAmount } from './ComplexAmount';
 import Transformish, { toTransformationMatrix3D } from './Transformish';
@@ -930,6 +927,7 @@ import { Writable } from 'stream';
 type OutputFormatID = "svg"|"gcode"|"bounds";
 
 if( require.main == module ) {
+	let variationString : "full"|"sketch" = "full"; // Some parts support this parameter
 	let includeOutline = true;
 	let includeHoles = true;
 	let includeLabel = true;
@@ -974,12 +972,12 @@ if( require.main == module ) {
 		}
 	}
 
-	const partToJob = function(part:Part):Job {
+	const partToJob = function(part:Part, transform:TransformationMatrix3D):Job {
 		return {
 			name: part.name,
 			cut: {
 				classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
-				transformations: [getTransformation()],
+				transformations: [transform],
 				components: [part.cut],
 			}
 		}
@@ -1006,12 +1004,15 @@ if( require.main == module ) {
 			includeHoles = false;
 			includeOutline = true;
 			includeLabel = false;
+		} else if( arg == '--sketch' ) {
+			variationString = "sketch";
 		} else if( arg == '--label-only' ) {
 			includeHoles = false;
 			includeOutline = false;
 			includeLabel = true;
 		} else if( (m = /^--offset=([^,]*),([^,]*),([^,]*)$/.exec(arg)) ) {
 			offset = {x:offset.x, y:offset.y, z:offset.z};
+			console.error("Warning: --offset doesn't know about units; specify --native-unit first, and offset will be interpreted as that");
 			if( !empty(m[1]) ) offset.x = parseNumber(m[1]);
 			if( !empty(m[2]) ) offset.y = parseNumber(m[2]);
 			if( !empty(m[3]) ) offset.z = parseNumber(m[3]);
@@ -1085,18 +1086,21 @@ if( require.main == module ) {
 			});
 		*/
 		} else if( arg == '--wstype-200030' ) {
-			jobPromises.push(Promise.resolve(partToJob(makeWstype200030())));
+			jobPromises.push(Promise.resolve(partToJob(makeWstype200030(), getTransformation())));
 		} else if( arg == '--wstype-200031' ) {
-			jobPromises.push(Promise.resolve(partToJob(makeWstype200031())));
+			jobPromises.push(Promise.resolve(partToJob(makeWstype200031(), getTransformation())));
 		} else if( arg == '--test-countersink' ) {
 			jobPromises.push(Promise.resolve(cutToJob("Test countersink", flatheadNumberSixHole)));
 		} else if( (m = /--part=(.*)$/.exec(arg)) ) {
+			const currentTransform = getTransformation();
+			const currentParams = {
+				labelText: label,
+				variationString,
+			};
 			// TODO: Use dynamic imports to load the part
 			jobPromises.push(
 				import("./parts/"+m[1]+".js").then((mod) => {
-					return partToJob(mod.default({
-						labelText: label
-					}));
+					return partToJob(mod.default(currentParams), currentTransform);
 				})
 			);
 			//jobs.push(partToJob(makeWstype200030()));

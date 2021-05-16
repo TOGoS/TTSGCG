@@ -103,7 +103,8 @@ export interface CornerOptions {
 	cornerRadius:number;
 }
 export const fullTurnAngle = Math.PI*2;
-export const quarterTurn = Math.PI/2;
+export const halfTurnAngle = Math.PI;
+export const quarterTurnAngle = Math.PI/2;
 export const eighthTurnAngle = Math.PI/4;
 
 interface BoxOptions {
@@ -132,18 +133,18 @@ export function boxPath(boxOptions:BoxOptions) {
 	const c = boxOptions.cornerOptions.cornerRadius;
 	const cs = boxOptions.cornerOptions.cornerStyleName;
 	let pb = new PathBuilder({x:x0+c, y:y0+0, z:0});
-	pb.lineToCornerStart({x:x0+w,y:y0+0,z:0}, quarterTurn, c);
-	pb.turn(quarterTurn, c, cs);
-	pb.lineToCornerStart({x:x0+w,y:y0+h,z:0}, quarterTurn, c);
-	pb.turn(quarterTurn, c, cs);
-	pb.lineToCornerStart({x:x0+0,y:y0+h,z:0}, quarterTurn, c);
-	pb.turn(quarterTurn, c, cs);
-	pb.lineToCornerStart({x:x0+0,y:y0+0,z:0}, quarterTurn, c);
-	pb.turn(quarterTurn, c, cs);
+	pb.lineToCornerStart({x:x0+w,y:y0+0,z:0}, quarterTurnAngle, c);
+	pb.turn(quarterTurnAngle, c, cs);
+	pb.lineToCornerStart({x:x0+w,y:y0+h,z:0}, quarterTurnAngle, c);
+	pb.turn(quarterTurnAngle, c, cs);
+	pb.lineToCornerStart({x:x0+0,y:y0+h,z:0}, quarterTurnAngle, c);
+	pb.turn(quarterTurnAngle, c, cs);
+	pb.lineToCornerStart({x:x0+0,y:y0+0,z:0}, quarterTurnAngle, c);
+	pb.turn(quarterTurnAngle, c, cs);
 	return pb.closeLoop().path;
 }
 
 export function circlePath(radius:number):Path {
 	let pb = new PathBuilder({x:0, y:-radius, z:0});
-	return pb.turn(fullTurnAngle, radius).closeLoop().path;
+	return pb.turn(halfTurnAngle, radius).turn(halfTurnAngle, radius).closeLoop().path;
 }

@@ -1,6 +1,6 @@
 import Part from '../Part';
-import { boxPath } from '../pathutils';
-import Cut, { identityTransformations, RoundHole, ConicPocket } from '../Cut';
+import { boxPath, PathBuilder, circlePath } from '../pathutils';
+import Cut, { identityTransformations, RoundHole, ConicPocket, CompoundCut } from '../Cut';
 import { inches } from '../units';
 import { textToCut, Font } from '../text';
 import { getFont } from '../fonts';
@@ -62,6 +62,7 @@ function makeCountersunkM4Hole(bottomDepth:number) : Cut {
 
 interface PartOptions {
 	labelText? : string;
+	variationString? : "full"|"sketch"
 }
 
 function centeredLabel(text:string, font:Font, x:number, y:number, depth:number, maxWidth:number, maxHeight:number) : Cut {
@@ -78,16 +79,45 @@ function centeredLabel(text:string, font:Font, x:number, y:number, depth:number,
 	}
 }
 
+function mkSketchHole(diameter:number, edgeDepth:number, centerDepth:number) : CompoundCut {
+	return {
+		classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
+		transformations: identityTransformations,
+		components: [
+			{
+				classRef: "http://ns.nuke24.net/TTSGCG/Cut/TracePath",
+				spaceSide: "middle",
+				path: circlePath(diameter/2),
+			},
+			{
+				classRef: "http://ns.nuke24.net/TTSGCG/Cut/RoundHole",
+				diameter: 0,
+				depth: edgeDepth,
+			}
+		]
+	}
+
+}
+
 export default function makePart(partOptions:PartOptions):Part {
 	const panelWidth = 4.75;
+	const isSketch = partOptions.variationString == "sketch";
+	const sketchOutlineDepth = 1/16; // Lines for eyeballs
+	const sketchPointDepth = 1/8; // Points for drill bits
+	const edgeDepth = isSketch ? sketchOutlineDepth : Infinity;
+
+	//console.error("partOptions:", partOptions, "isSketch:", isSketch);
 	
-	const gridbeamHole : RoundHole = {
+	const realGridbeamHole : RoundHole = {
 		classRef: "http://ns.nuke24.net/TTSGCG/Cut/RoundHole",
 		diameter: 5/16,
 		depth: Infinity,
 	};
+	const sketchGridbeamHole = mkSketchHole(5/16, sketchOutlineDepth, sketchPointDepth);
+	const gridbeamHole = isSketch ? sketchGridbeamHole : realGridbeamHole;
 
-	const m4Hole = makeCountersunkM4Hole(boardThickness - 1/8);
+	const realM4Hole = makeCountersunkM4Hole(boardThickness - 1/8);
+	const m4Hole = isSketch ? sketchGridbeamHole : realM4Hole; // Eh, I'll know which is which!
 	
 	return {
 		name: "WSTYPE-100390",
@@ -123,7 +153,7 @@ export default function makePart(partOptions:PartOptions):Part {
 				// Outline
 				{
 					classRef: "http://ns.nuke24.net/TTSGCG/Cut/TracePath",
-					depth: Infinity,
+					depth: edgeDepth,
 					spaceSide: "middle", 
 					path: boxPath({
 						x0: -panelWidth/2, y0: -panelWidth/2,

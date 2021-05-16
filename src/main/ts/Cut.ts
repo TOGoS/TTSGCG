@@ -30,7 +30,8 @@ export interface CompoundCut {
 	transformations:Transformish[];
 	components:Cut[];
 }
-// A circular edge
+// A circular edge.
+// If radius - bit radius is <= 0, will result in a banged dot hole.
 export interface RoundHole {
 	classRef: "http://ns.nuke24.net/TTSGCG/Cut/RoundHole",
 	diameter: number;
