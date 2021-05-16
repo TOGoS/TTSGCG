@@ -1094,7 +1094,9 @@ if( require.main == module ) {
 			// TODO: Use dynamic imports to load the part
 			jobPromises.push(
 				import("./parts/"+m[1]+".js").then((mod) => {
-					return partToJob(mod.default());
+					return partToJob(mod.default({
+						labelText: label
+					}));
 				})
 			);
 			//jobs.push(partToJob(makeWstype200030()));
