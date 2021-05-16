@@ -937,6 +937,7 @@ if( require.main == module ) {
 	let bitAngle = 11;
 	let workpieceThickness:ComplexAmount|undefined = undefined;
 	let holeDiameter = 5/32;
+	let sketchDepth = millimeters(1);
 	let labelDepth = millimeters(1);
 	let holeSpacing = 1/4; // Usually 1/2 is sufficient but why not do even better?!
 	let labelScale = 2.5/6; // Fits "TTSGCG" into 2.5 inches :P
@@ -1006,13 +1007,16 @@ if( require.main == module ) {
 			includeLabel = false;
 		} else if( arg == '--sketch' ) {
 			variationString = "sketch";
+		} else if( (m = /--sketch-depth=(.*)/.exec(arg)) ) {
+			sketchDepth = parseComplexAmount(m[1], distanceUnits);
 		} else if( arg == '--label-only' ) {
 			includeHoles = false;
 			includeOutline = false;
 			includeLabel = true;
 		} else if( (m = /^--offset=([^,]*),([^,]*),([^,]*)$/.exec(arg)) ) {
 			offset = {x:offset.x, y:offset.y, z:offset.z};
-			console.error("Warning: --offset doesn't know about units; specify --native-unit first, and offset will be interpreted as that");
+			console.error("Warning: --offset doesn't know about units (which should be fixed someday)");
+			console.error("  Specify --native-unit first, and offset will be interpreted as that");
 			if( !empty(m[1]) ) offset.x = parseNumber(m[1]);
 			if( !empty(m[2]) ) offset.y = parseNumber(m[2]);
 			if( !empty(m[3]) ) offset.z = parseNumber(m[3]);
@@ -1028,6 +1032,8 @@ if( require.main == module ) {
 			labelFontName = m[1];
 		} else if( (m = /^--label-direction=(longitudinal|lateral)$/.exec(arg)) ) {
 			labelDirection = <LatOrLong>m[1];
+		} else if( (m = /^--label-depth=(.*)$/.exec(arg)) ) {
+			labelDepth = parseComplexAmount(m[1], distanceUnits);
 		} else if( (m = /^--bit-diameter=(.+)$/.exec(arg)) ) {
 			bitTipSize = parseComplexAmount(m[1], distanceUnits);
 		} else if( (m = /^--bit-angle=(.+)$/.exec(arg)) ) {
@@ -1095,6 +1101,8 @@ if( require.main == module ) {
 			const currentTransform = getTransformation();
 			const currentParams = {
 				labelText: label,
+				labelDepth: labelDepth,
+				sketchDepth: sketchDepth,
 				variationString,
 			};
 			// TODO: Use dynamic imports to load the part

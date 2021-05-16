@@ -1,10 +1,11 @@
 import Part from '../Part';
 import { boxPath, PathBuilder, circlePath } from '../pathutils';
 import Cut, { identityTransformations, RoundHole, ConicPocket, CompoundCut } from '../Cut';
-import { inches } from '../units';
+import { inches, INCH, distanceUnits } from '../units';
 import { textToCut, Font } from '../text';
 import { getFont } from '../fonts';
 import Transformish from '../Transformish';
+import ComplexAmount, { decodeComplexAmount } from '../ComplexAmount';
 
 function mmAsInches(mm:number) {
 	return mm / 25.4;
@@ -29,9 +30,7 @@ const m4HolePositions : Transformish[] = [
 ];
 
 const label = {
-	text: "WSTYPE-100390",
 	fontName: "tog-line-letters",
-	depth: 1/16,
 };
 
 function makeCountersunkM4Hole(bottomDepth:number) : Cut {
@@ -62,6 +61,8 @@ function makeCountersunkM4Hole(bottomDepth:number) : Cut {
 
 interface PartOptions {
 	labelText? : string;
+	sketchDepth? : ComplexAmount;
+	labelDepth? : ComplexAmount;
 	variationString? : "full"|"sketch"
 }
 
@@ -88,11 +89,12 @@ function mkSketchHole(diameter:number, edgeDepth:number, centerDepth:number) : C
 				classRef: "http://ns.nuke24.net/TTSGCG/Cut/TracePath",
 				spaceSide: "middle",
 				path: circlePath(diameter/2),
+				depth: edgeDepth,
 			},
 			{
 				classRef: "http://ns.nuke24.net/TTSGCG/Cut/RoundHole",
 				diameter: 0,
-				depth: edgeDepth,
+				depth: centerDepth,
 			}
 		]
 	}
@@ -100,9 +102,12 @@ function mkSketchHole(diameter:number, edgeDepth:number, centerDepth:number) : C
 }
 
 export default function makePart(partOptions:PartOptions):Part {
+	const partUnit = INCH; // Some of the below code assumes inches; probably don't mess with it.
+
 	const panelWidth = 4.75;
 	const isSketch = partOptions.variationString == "sketch";
-	const sketchOutlineDepth = 1/16; // Lines for eyeballs
+	const sketchOutlineDepth = decodeComplexAmount(partOptions.sketchDepth ?? inches(1/24), partUnit, distanceUnits); // Lines for eyeballs
+	const labelDepth = decodeComplexAmount(partOptions.labelDepth ?? inches(1/8), partUnit, distanceUnits);
 	const sketchPointDepth = 1/8; // Points for drill bits
 	const edgeDepth = isSketch ? sketchOutlineDepth : Infinity;
 
@@ -145,10 +150,10 @@ export default function makePart(partOptions:PartOptions):Part {
 				},
 
 				// Model Label
-				centeredLabel(label.text, getFont(label.fontName), 0, 3/4, label.depth, 4.5, 1),
+				centeredLabel("WSTYPE-100390", getFont(label.fontName), 0, 3/4, labelDepth, 4.5, 1),
 
 				// Instance Label, if any
-				centeredLabel(partOptions.labelText ?? "", getFont(label.fontName), 0, -3/4, label.depth, 4.5, 1),
+				centeredLabel(partOptions.labelText ?? "", getFont(label.fontName), 0, -3/4, labelDepth, 4.5, 1),
 
 				// Outline
 				{
