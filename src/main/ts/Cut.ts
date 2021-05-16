@@ -20,6 +20,7 @@ export interface ConicPocket {
 	edgeDepth: number;
 	bottomDiameter: number;
 	bottomDepth: number;
+	/** Should the bottom/center section be cut? */
 	cutsBottom: boolean;
 }
 // Apply each transformation to each shape!
