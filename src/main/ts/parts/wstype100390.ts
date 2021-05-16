@@ -1,12 +1,10 @@
 import Part from '../Part';
-import { PathBuilder, boxPath } from '../pathutils';
-import { makeTogRackPanelOutline } from './tograckpanel';
+import { boxPath } from '../pathutils';
 import Cut, { identityTransformations, RoundHole, ConicPocket } from '../Cut';
 import { inches } from '../units';
-import { textToCut } from '../text';
+import { textToCut, Font } from '../text';
 import { getFont } from '../fonts';
 import Transformish from '../Transformish';
-import { translationToTransform, multiplyTransform, scaleToTransform } from '../vectormath';
 
 function mmAsInches(mm:number) {
 	return mm / 25.4;
@@ -34,7 +32,6 @@ const label = {
 	text: "WSTYPE-100390",
 	fontName: "tog-line-letters",
 	depth: 1/16,
-	fontScale: 1/4,
 };
 
 function makeCountersunkM4Hole(bottomDepth:number) : Cut {
@@ -63,7 +60,25 @@ function makeCountersunkM4Hole(bottomDepth:number) : Cut {
 	}
 }
 
-export default function makePart():Part {
+interface PartOptions {
+	labelText? : string;
+}
+
+function centeredLabel(text:string, font:Font, x:number, y:number, depth:number, maxWidth:number, maxHeight:number) : Cut {
+	// Assuming single line for now...
+	const nativeWidth = text.length;
+	const nativeHeight = 1;
+
+	const scale = Math.min( maxWidth / nativeWidth, maxHeight / nativeHeight );
+
+	return {
+		classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
+		transformations: [{x: x - (nativeWidth * scale)/2, y: y + scale/2, z: -depth, scale: scale}],
+		components: [textToCut(text, font)]
+	}
+}
+
+export default function makePart(partOptions:PartOptions):Part {
 	const panelWidth = 4.75;
 	
 	const gridbeamHole : RoundHole = {
@@ -99,12 +114,11 @@ export default function makePart():Part {
 					]
 				},
 
-				// Label
-				{
-					classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
-					transformations: [{x: 0 - (label.text.length * label.fontScale)/2, y: 3/4 + label.fontScale/2, z: label.depth, scale: label.fontScale}],
-					components: [textToCut(label.text, getFont(label.fontName))]
-				},
+				// Model Label
+				centeredLabel(label.text, getFont(label.fontName), 0, 3/4, label.depth, 4.5, 1),
+
+				// Instance Label, if any
+				centeredLabel(partOptions.labelText != undefined ? partOptions.labelText : "", getFont(label.fontName), 0, -3/4, label.depth, 4.5, 1),
 
 				// Outline
 				{
