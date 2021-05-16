@@ -257,6 +257,8 @@ export const togLineLetters:Font = (() => {
 			"3": mkblok([[aa,ad,[cright,bd],cd,[cright,dd],ed,ea],[ca,cd]]),
 			"4": mkblok([[ed,ad,ca,ce]]),
 			"5": mkblok([[ae,aa,ca,cd,[cright,dd],ed,ea]]),
+			// TODO: Other numbers!
+			"9": mkblok([[be,[cright,bd],cd,cb,[cright,bb],ab,ad,[cright,bd],be,ee]]),
 		}
 	}
 })();
