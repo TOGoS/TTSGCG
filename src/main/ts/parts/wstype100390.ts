@@ -118,7 +118,7 @@ export default function makePart(partOptions:PartOptions):Part {
 				centeredLabel(label.text, getFont(label.fontName), 0, 3/4, label.depth, 4.5, 1),
 
 				// Instance Label, if any
-				centeredLabel(partOptions.labelText != undefined ? partOptions.labelText : "", getFont(label.fontName), 0, -3/4, label.depth, 4.5, 1),
+				centeredLabel(partOptions.labelText ?? "", getFont(label.fontName), 0, -3/4, label.depth, 4.5, 1),
 
 				// Outline
 				{
