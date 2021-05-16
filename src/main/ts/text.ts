@@ -39,6 +39,8 @@ export function textToCut(text:string, charset:Font):Cut {
 			lineHeight = Math.max(lineHeight, char.boundingBox.topY - char.boundingBox.bottomY);
 			lineTop = Math.max(lineTop, char.boundingBox.topY);
 			curLine.push(char);
+		} else {
+			throw new Error("No glyph defined for char: '"+charKey+"'");
 		}
 	}
 	if( curLine ) lines.push(curLine);
