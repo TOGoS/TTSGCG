@@ -5,10 +5,14 @@ import { makeTogRackPanelOutlineAndHoles } from "./tograckpanel";
 import { SimpleTransformation2D } from "../Transformish";
 import { rectangularArray } from "../cuts";
 
-// my switch posts are 1/4" and 1/3" long;
-// bodies are 1/2" the switch-flip way, 0.31" side-to-side, and 0.54" tall, including leads
-// Can I make the panel 3.5" square?  That'd be cute.  No real reason to make it square, though.
-// Could fit up to 5 switches easily, so let's drill 5 holes
+/**
+ * A 3.5" x 3.5" TOGRack panel
+ * with 5 rows of #6 screw hole - hole for switch post - #6 screw hole
+ * my switch posts are 1/4" and 1/3" long;
+ * bodies are 1/2" the switch-flip way, 0.31" side-to-side, and 0.54" tall, including leads
+ * Can I make the panel 3.5" square?  That'd be cute.  No real reason to make it square, though.
+ * Could fit up to 5 switches easily, so let's drill 5 holes
+ */
 
 const screwHole:Cut = {
     classRef: "http://ns.nuke24.net/TTSGCG/Cut/RoundHole",
