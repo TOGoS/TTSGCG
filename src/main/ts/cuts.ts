@@ -1,4 +1,5 @@
-import Cut from "./Cut";
+import Cut, { CompoundCut, identityTransformations } from "./Cut";
+import { circlePath } from "./pathutils";
 import { SimpleTransformation2D } from "./Transformish";
 
 interface ArrayOptions {
@@ -40,4 +41,28 @@ export function rectangularArray(cuts:Cut[], options:ArrayOptions):Cut {
         transformations: rectangularArrayPoints(options),
         components: cuts,
     };
+}
+
+/**
+ * A circle with a dot in the middle, which can be used to represent a hole
+ * that will be drilled separately (e.g. using a hand drill or drill press).
+ */
+export function sketchHole(diameter:number, edgeDepth:number, centerDepth:number) : CompoundCut {
+	return {
+		classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
+		transformations: identityTransformations,
+		components: [
+			{
+				classRef: "http://ns.nuke24.net/TTSGCG/Cut/TracePath",
+				spaceSide: "middle",
+				path: circlePath(diameter/2),
+				depth: edgeDepth,
+			},
+			{
+				classRef: "http://ns.nuke24.net/TTSGCG/Cut/RoundHole",
+				diameter: 0,
+				depth: centerDepth,
+			}
+		]
+	}
 }

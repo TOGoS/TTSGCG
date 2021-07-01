@@ -1,3 +1,7 @@
+/**
+ * A 4.5" gridbeam / 100mm VESA monitormount panel
+ */
+
 import Part from '../Part';
 import { boxPath, PathBuilder, circlePath } from '../pathutils';
 import Cut, { identityTransformations, RoundHole, ConicPocket, CompoundCut } from '../Cut';
@@ -6,6 +10,7 @@ import { textToCut, Font } from '../text';
 import { getFont } from '../fonts';
 import Transformish from '../Transformish';
 import ComplexAmount, { decodeComplexAmount } from '../ComplexAmount';
+import { sketchHole } from '../cuts';
 
 function mmAsInches(mm:number) {
 	return mm / 25.4;
@@ -80,27 +85,6 @@ function centeredLabel(text:string, font:Font, x:number, y:number, depth:number,
 	}
 }
 
-function mkSketchHole(diameter:number, edgeDepth:number, centerDepth:number) : CompoundCut {
-	return {
-		classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
-		transformations: identityTransformations,
-		components: [
-			{
-				classRef: "http://ns.nuke24.net/TTSGCG/Cut/TracePath",
-				spaceSide: "middle",
-				path: circlePath(diameter/2),
-				depth: edgeDepth,
-			},
-			{
-				classRef: "http://ns.nuke24.net/TTSGCG/Cut/RoundHole",
-				diameter: 0,
-				depth: centerDepth,
-			}
-		]
-	}
-
-}
-
 export default function makePart(partOptions:PartOptions):Part {
 	const partUnit = INCH; // Some of the below code assumes inches; probably don't mess with it.
 
@@ -118,7 +102,7 @@ export default function makePart(partOptions:PartOptions):Part {
 		diameter: 5/16,
 		depth: Infinity,
 	};
-	const sketchGridbeamHole = mkSketchHole(5/16, sketchOutlineDepth, sketchPointDepth);
+	const sketchGridbeamHole = sketchHole(5/16, sketchOutlineDepth, sketchPointDepth);
 	const gridbeamHole = isSketch ? sketchGridbeamHole : realGridbeamHole;
 
 	const realM4Hole = makeCountersunkM4Hole(boardThickness - 1/8);
