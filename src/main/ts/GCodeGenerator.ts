@@ -923,6 +923,7 @@ import Unit, { findUnit, UnitTable, getUnit } from './Unit';
 import { distanceUnits, inches, MM, millimeters } from './units';
 import { open, fstat, createWriteStream, WriteStream } from 'fs';
 import { Writable } from 'stream';
+import StandardPartOptions from './parts/StandardPartOptions';
 
 type OutputFormatID = "svg"|"gcode"|"bounds";
 
@@ -1099,7 +1100,7 @@ if( require.main == module ) {
 			jobPromises.push(Promise.resolve(cutToJob("Test countersink", flatheadNumberSixHole)));
 		} else if( (m = /--part=(.*)$/.exec(arg)) ) {
 			const currentTransform = getTransformation();
-			const currentParams = {
+			const currentParams:StandardPartOptions = {
 				labelText: label,
 				labelDepth: labelDepth,
 				sketchDepth: sketchDepth,
