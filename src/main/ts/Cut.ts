@@ -12,7 +12,7 @@ export interface TracePath {
 export interface RectangularPocket {
 	x0: number; x1: number;
 	y0: number; y1: number;
-	depth: number;
+	depth?: number;
 }
 export interface ConicPocket {
 	classRef: "http://ns.nuke24.net/TTSGCG/Cut/ConicPocket",
@@ -35,7 +35,7 @@ export interface CompoundCut {
 export interface RoundHole {
 	classRef: "http://ns.nuke24.net/TTSGCG/Cut/RoundHole",
 	diameter: number;
-	depth: number;
+	depth?: number;
 }
 
 // Pause the cut until user manually unpauses

@@ -144,6 +144,72 @@ export function boxPath(boxOptions:BoxOptions) {
 	return pb.closeLoop().path;
 }
 
+/** A shape that is the union of two overlapping rectangles centered at 0,0 */
+export interface CrossShape {
+    tall: { width: number, height: number };
+    wide: { width: number, height: number };
+}
+
+export function crossOutlinePath(s:CrossShape):Path {
+    return new PathBuilder({
+        x: -s.tall.width/2,
+        y: -s.tall.height/2,
+        z: 0
+    }).lineTo({
+        x: +s.tall.width/2,
+        y: -s.tall.height/2,
+        z: 0    
+    }).lineTo({
+        x: +s.tall.width/2,
+        y: -s.wide.height/2,
+        z: 0
+    }).lineTo({
+        x: +s.wide.width/2,
+        y: -s.wide.height/2,
+        z: 0
+    }).lineTo({
+        x: +s.wide.width/2,
+        y: -s.wide.height/2,
+        z: 0
+    }).lineTo({
+        x: +s.wide.width/2,
+        y: +s.wide.height/2,
+        z: 0
+    }).lineTo({
+        x: +s.tall.width/2,
+        y: +s.wide.height/2,
+        z: 0
+    }).lineTo({
+        x: +s.tall.width/2,
+        y: +s.tall.height/2,
+        z: 0
+    }).lineTo({
+        x: -s.tall.width/2,
+        y: +s.tall.height/2,
+        z: 0
+    }).lineTo({
+        x: -s.tall.width/2,
+        y: +s.wide.height/2,
+        z: 0
+    }).lineTo({
+        x: -s.wide.width/2,
+        y: +s.wide.height/2,
+        z: 0
+    }).lineTo({
+        x: -s.wide.width/2,
+        y: -s.wide.height/2,
+        z: 0
+    }).lineTo({
+        x: -s.tall.width/2,
+        y: -s.wide.height/2,
+        z: 0
+    }).lineTo({
+        x: -s.tall.width/2,
+        y: -s.tall.height/2,
+        z: 0
+    }).path;
+}
+
 export function circlePath(radius:number):Path {
 	let pb = new PathBuilder({x:0, y:-radius, z:0});
 	return pb
