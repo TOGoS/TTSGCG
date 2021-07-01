@@ -32,12 +32,14 @@ const powerInletCutoutDims : CrossShape = {
 const powerInletCut:Cut = {
     classRef: "http://ns.nuke24.net/TTSGCG/Cut/TracePath",
     path: crossOutlinePath(powerInletCutoutDims),
-    spaceSide: 'left',                    
+    spaceSide: 'left',
+    depth: Infinity,
 };
 
 const gx12Cut:RoundHole = {
     classRef: "http://ns.nuke24.net/TTSGCG/Cut/RoundHole",
     diameter: 12,
+    depth: Infinity,
 };
 
 const oledCut:Cut = {
@@ -48,7 +50,8 @@ const oledCut:Cut = {
         height: 19.5,
         cornerOptions: {cornerRadius: 0, cornerStyleName: "Round"}
     }),
-    spaceSide: 'left',                    
+    spaceSide: 'left',
+    depth: Infinity,
 }
 
 export default function makePart(options:StandardPartOptions):Part {
@@ -76,7 +79,7 @@ export default function makePart(options:StandardPartOptions):Part {
                         translationToTransform({x:13, y:13, z:0}),
                         xyzAxisAngleToTransform(0,0,1, -Math.PI/4),
                     )],
-                    components: [powerInletCut]
+                    components: [powerInletCut],
                 },
                 {
                     classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
