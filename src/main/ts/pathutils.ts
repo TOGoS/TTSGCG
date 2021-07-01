@@ -146,5 +146,10 @@ export function boxPath(boxOptions:BoxOptions) {
 
 export function circlePath(radius:number):Path {
 	let pb = new PathBuilder({x:0, y:-radius, z:0});
-	return pb.turn(halfTurnAngle, radius).turn(halfTurnAngle, radius).closeLoop().path;
+	return pb
+		.turn(quarterTurnAngle, radius)
+		.turn(quarterTurnAngle, radius)
+		.turn(quarterTurnAngle, radius)
+		.turn(quarterTurnAngle, radius)
+		.closeLoop().path;
 }
