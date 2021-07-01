@@ -8,7 +8,9 @@
     "test": "make run-unit-tests"
   },
   "dependencies": {
-    "@types/node": "^12.20.13",
     "typescript": "^3.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^12.20.15"
   }
 }
