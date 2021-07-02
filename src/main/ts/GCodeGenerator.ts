@@ -928,7 +928,7 @@ import StandardPartOptions from './parts/StandardPartOptions';
 type OutputFormatID = "svg"|"gcode"|"bounds";
 
 if( require.main == module ) {
-	let variationString : "full"|"sketch" = "full"; // Some parts support this parameter
+	let variationString : "full"|"sketch"|string = "full"; // Some parts support this parameter
 	let includeOutline = true;
 	let includeHoles = true;
 	let includeLabel = true;
@@ -1014,6 +1014,8 @@ if( require.main == module ) {
 			includeHoles = false;
 			includeOutline = false;
 			includeLabel = true;
+		} else if( (m = /^--variation=(.*)/.exec(arg)) ) {
+			variationString = m[1];
 		} else if( (m = /^--offset=([^,]*),([^,]*),([^,]*)$/.exec(arg)) ) {
 			offset = {x:offset.x, y:offset.y, z:offset.z};
 			console.error("Warning: --offset doesn't know about units (which should be fixed someday)");

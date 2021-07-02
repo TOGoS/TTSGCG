@@ -55,8 +55,51 @@ const oledCut:Cut = {
 }
 
 export default function makePart(options:StandardPartOptions):Part {
+    const isCover = options.variationString == "cover";
     const sketchDepth = decodeComplexAmount(options.sketchDepth, MM, distanceUnits);
     const edgeDepth = options.variationString == "sketch" ? sketchDepth : Infinity;
+
+    const components : Cut[] = [];
+
+    if( !isCover ) components.push({
+        classRef: "http://ns.nuke24.net/TTSGCG/Cut/TracePath",
+        path: circlePath(25.4 * (2+5/8)/2),
+        spaceSide: 'left',
+        comment: "Inner edge of widemouth lid inset",
+        depth: sketchDepth
+    });
+    components.push({
+        classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
+        comment: "Power inlet cutout",
+        transformations: [multiplyTransform(
+            translationToTransform({x:13, y:13, z:0}),
+            xyzAxisAngleToTransform(0,0,1, -Math.PI/4),
+        )],
+        components: [powerInletCut],
+    });
+    components.push({
+        classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
+        comment: "GX12 hole",
+        transformations: [
+            translationToTransform({x:25.4 * (-5/8), y: 25.4*(3/8), z:0 })
+        ],
+        components: [gx12Cut]
+    });
+    if( !isCover ) components.push({
+        classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
+        comment: "OLED hole",
+        transformations: [
+            translationToTransform({x:0, y: 25.4 * (-5/8), z:0 })
+        ],
+        components: [oledCut]
+    });
+    components.push({
+        comment: "Outer edge of widemouth lid",
+        classRef: "http://ns.nuke24.net/TTSGCG/Cut/TracePath",
+        path: circlePath(25.4 * (3+5/16)/2),
+        spaceSide: 'left',
+        depth: edgeDepth,
+    });
 
     return {
         name: "WSTYPE-200146",
@@ -64,47 +107,7 @@ export default function makePart(options:StandardPartOptions):Part {
             classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
             unit: ONE_MM,
             transformations: identityTransformations,
-            components: [
-                {
-                    classRef: "http://ns.nuke24.net/TTSGCG/Cut/TracePath",
-                    path: circlePath(25.4 * (2+5/8)/2),
-                    spaceSide: 'left',
-                    comment: "Inner edge of widemouth lid inset",
-                    depth: sketchDepth
-                },
-                {
-                    classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
-                    comment: "Power inlet cutout",
-                    transformations: [multiplyTransform(
-                        translationToTransform({x:13, y:13, z:0}),
-                        xyzAxisAngleToTransform(0,0,1, -Math.PI/4),
-                    )],
-                    components: [powerInletCut],
-                },
-                {
-                    classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
-                    comment: "GX12 hole",
-                    transformations: [
-                        translationToTransform({x:25.4 * (-5/8), y: 25.4*(3/8), z:0 })
-                    ],
-                    components: [gx12Cut]
-                },
-                {
-                    classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
-                    comment: "OLED hole",
-                    transformations: [
-                        translationToTransform({x:0, y: 25.4 * (-5/8), z:0 })
-                    ],
-                    components: [oledCut]
-                },
-                {
-                    comment: "Outer edge of widemouth lid",
-                    classRef: "http://ns.nuke24.net/TTSGCG/Cut/TracePath",
-                    path: circlePath(25.4 * (3+5/16)/2),
-                    spaceSide: 'left',
-                    depth: edgeDepth,
-                }
-            ]
+            components
         }
     }
 }
