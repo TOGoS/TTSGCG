@@ -1,18 +1,6 @@
 /**
- * Design for a widemouth jar lid with cutouts for power, GX12, and OLED screen.
- * See ProjectNotes2/2021/EnvironmentalSensor/LargemouthPanel.dxf
- * 
- * From ProjectNotes2/2021/EnvironmentalSensor/SensorWiring.org:
- * 
- *   GX12 outer threads are about 11.58mm in diameter.
- *   
- *   The 'panel cutout' described by the [[https://www.digikey.com/en/products/detail/qualtek/771W-X2-01/299903][lamp cord receptacle]]
- *   (IEC 60320 C8) datasheet is "+"-shaped, i.e. two overlapping rectangles,
- *   19.5mm x 12.5mm and 24.5mm x 7.5mm.
- *   
- *   The OLED screen module is 28.4mm x 27.3mm, and the actual screen is 26.7mm x 19.1mm.
- *   
- *   A widemouth jar lid (that I measured) is 3+5/16", and the inset part is 2+5/8" diameter..
+ * Design for a widemouth jar lid with cutouts for GX12 and GX16 male panel-mount connectors.
+ * See also ./wstype200146.ts, which is similar.
 */
 
 import { decodeComplexAmount } from '../ComplexAmount';
@@ -23,18 +11,6 @@ import { Path } from '../Shape2D';
 import { distanceUnits, millimeters, MM, ONE_MM } from '../units'
 import { multiplyTransform, translationToTransform, xyzAxisAngleToTransform } from '../vectormath';
 import StandardPartOptions from './StandardPartOptions';
-
-const powerInletCutoutDims : CrossShape = {
-    tall: { width: 19.5, height: 12.5 },
-    wide: { width: 24.5, height: 7.5 },
-};
-
-const powerInletCut:Cut = {
-    classRef: "http://ns.nuke24.net/TTSGCG/Cut/TracePath",
-    path: crossOutlinePath(powerInletCutoutDims),
-    spaceSide: 'left',
-    depth: Infinity,
-};
 
 const gx12Cut:RoundHole = {
     classRef: "http://ns.nuke24.net/TTSGCG/Cut/RoundHole",
