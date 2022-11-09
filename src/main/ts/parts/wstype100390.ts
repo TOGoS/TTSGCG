@@ -5,7 +5,7 @@
 import Part from '../Part';
 import { boxPath, PathBuilder, circlePath } from '../pathutils';
 import Cut, { identityTransformations, RoundHole, ConicPocket, CompoundCut } from '../Cut';
-import { inches, INCH, distanceUnits } from '../units';
+import { inches, INCH, DISTANCE_UNITS } from '../units';
 import { textToCut, Font } from '../text';
 import { getFont } from '../fonts';
 import Transformish from '../Transformish';
@@ -90,8 +90,8 @@ export default function makePart(partOptions:PartOptions):Part {
 
 	const panelWidth = 4.75;
 	const isSketch = partOptions.variationString == "sketch";
-	const sketchOutlineDepth = decodeComplexAmount(partOptions.sketchDepth ?? inches(1/24), partUnit, distanceUnits); // Lines for eyeballs
-	const labelDepth = decodeComplexAmount(partOptions.labelDepth ?? inches(1/8), partUnit, distanceUnits);
+	const sketchOutlineDepth = decodeComplexAmount(partOptions.sketchDepth ?? inches(1/24), partUnit, DISTANCE_UNITS); // Lines for eyeballs
+	const labelDepth = decodeComplexAmount(partOptions.labelDepth ?? inches(1/8), partUnit, DISTANCE_UNITS);
 	const sketchPointDepth = 1/8; // Points for drill bits
 	const edgeDepth = isSketch ? sketchOutlineDepth : Infinity;
 

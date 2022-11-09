@@ -145,7 +145,7 @@ abstract class ShapeProcessorBase {
 		this.transformation = oldTransform;
 	}*/
 	decodeComplexAmount(ca:ComplexAmount):NativeDistance {
-		return decodeComplexAmount(ca, this.jobContext.nativeUnit, distanceUnits) as NativeDistance;
+		return decodeComplexAmount(ca, this.jobContext.nativeUnit, DISTANCE_UNITS) as NativeDistance;
 	}
 
 	abstract processPath(path:Path):void;
@@ -732,7 +732,7 @@ function parseNumber(numStr:string):number {
 
 function makeVBit(degrees:number, pointSize:ComplexAmount):RouterBit {
 	const twiceSlope = Math.tan(degrees/2 * Math.PI/180);
-	const pointSizeMm = decodeComplexAmount(pointSize, MM, distanceUnits);
+	const pointSizeMm = decodeComplexAmount(pointSize, MM, DISTANCE_UNITS);
 	return {
 		name: (pointSizeMm > 0 ? pointSize + "in-tip " : "") + degrees+"-degree carving bit",
 		diameterFunction: (depth) => addComplexAmounts(pointSize, scaleComplexAmount(depth, {numerator:twiceSlope, denominator:1})),
@@ -920,7 +920,7 @@ import { Path } from './Shape2D';
 import Part from './Part';
 import { type } from 'os';
 import Unit, { findUnit, UnitTable, getUnit } from './Unit';
-import { distanceUnits, inches, MM, millimeters } from './units';
+import { DISTANCE_UNITS, inches, MM, millimeters } from './units';
 import { open, fstat, createWriteStream, WriteStream } from 'fs';
 import { Writable } from 'stream';
 import StandardPartOptions from './parts/StandardPartOptions';
@@ -1009,7 +1009,7 @@ if( require.main == module ) {
 		} else if( arg == '--sketch' ) {
 			variationString = "sketch";
 		} else if( (m = /--sketch-depth=(.*)/.exec(arg)) ) {
-			sketchDepth = parseComplexAmount(m[1], distanceUnits);
+			sketchDepth = parseComplexAmount(m[1], DISTANCE_UNITS);
 		} else if( arg == '--label-only' ) {
 			includeHoles = false;
 			includeOutline = false;
@@ -1026,9 +1026,9 @@ if( require.main == module ) {
 		} else if( (m = /^--rotation=(.*)$/.exec(arg)) ) {
 			rotation = +m[1];
 		} else if( (m = /^--native-unit=(.*)$/.exec(arg)) ) {
-			nativeUnit = getUnit(m[1], distanceUnits);
+			nativeUnit = getUnit(m[1], DISTANCE_UNITS);
 		} else if( (m = /^--thickness=(.*)$/.exec(arg)) ) {
-			workpieceThickness = parseComplexAmount(m[1], distanceUnits);
+			workpieceThickness = parseComplexAmount(m[1], DISTANCE_UNITS);
 		} else if( (m = /^--label=(.*)$/.exec(arg)) ) {
 			label = m[1];
 		} else if( (m = /^--label-font=(.*)$/.exec(arg)) ) {
@@ -1036,13 +1036,13 @@ if( require.main == module ) {
 		} else if( (m = /^--label-direction=(longitudinal|lateral)$/.exec(arg)) ) {
 			labelDirection = <LatOrLong>m[1];
 		} else if( (m = /^--label-depth=(.*)$/.exec(arg)) ) {
-			labelDepth = parseComplexAmount(m[1], distanceUnits);
+			labelDepth = parseComplexAmount(m[1], DISTANCE_UNITS);
 		} else if( (m = /^--bit-diameter=(.+)$/.exec(arg)) ) {
-			bitTipSize = parseComplexAmount(m[1], distanceUnits);
+			bitTipSize = parseComplexAmount(m[1], DISTANCE_UNITS);
 		} else if( (m = /^--bit-angle=(.+)$/.exec(arg)) ) {
 			bitAngle = parseNumber(m[1]);
 		} else if( (m = /^--padding=(.*)$/.exec(arg)) ) {
-			padding = parseComplexAmount(m[1], distanceUnits);
+			padding = parseComplexAmount(m[1], DISTANCE_UNITS);
 		} else if( arg == "--output-bounds" ) {
 			outputFiles["-"] = "bounds";
 		} else if( (m = /^--gcode-comment-mode=(none|semicolon|parentheses)$/.exec(arg)) ) {
@@ -1162,7 +1162,7 @@ if( require.main == module ) {
 						gcg.emitShutdownCode();
 						break;
 					case "svg":
-						let padded = aabb.pad(bf, decodeComplexAmount(padding, nativeUnit, distanceUnits));
+						let padded = aabb.pad(bf, decodeComplexAmount(padding, nativeUnit, DISTANCE_UNITS));
 						let sg = new SVGGenerator(jobContext, emitter);
 						sg.emitHeader(padded);
 						sg.processJobs(jobs);

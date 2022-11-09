@@ -60,3 +60,18 @@ export function decodeComplexAmount(amount:ComplexAmount, nativeUnit:Unit, unitT
 	}
 	return total;
 }
+
+/**
+ * Decode complex amount in the simple case that it is already defined
+ * solely in terms of the desired unit (or is completely empty and therefore zero),
+ * which allows us to not require a unit table to be passed-in.
+ */
+export function simpleDecodeComplexAmount(amount:ComplexAmount, nativeUnit:Unit|string) : number {
+	if( typeof(nativeUnit) == 'object' ) {
+		nativeUnit = nativeUnit.name;
+	}
+	for( let k in amount ) {
+		if( k == nativeUnit ) return amount[k].numerator / amount[k].denominator;
+	}
+	return 0;
+}

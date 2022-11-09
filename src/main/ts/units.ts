@@ -16,7 +16,7 @@ export const MM : Unit = {
 	aliases: ["millimeter", "mm", "millimeters"],
 };
 
-export const distanceUnits:{[k:string]:Unit} = {
+export const DISTANCE_UNITS:{[k:string]:Unit} = {
 	"inch": INCH,
 	"millimeter": MM,
 }

@@ -20,7 +20,7 @@ import Cut, { identityTransformations, RoundHole } from '../Cut'
 import Part from '../Part'
 import { boxPath, circlePath, crossOutlinePath, CrossShape, PathBuilder } from '../pathutils'
 import { Path } from '../Shape2D';
-import { distanceUnits, millimeters, MM, ONE_MM } from '../units'
+import { DISTANCE_UNITS, millimeters, MM, ONE_MM } from '../units'
 import { multiplyTransform, translationToTransform, xyzAxisAngleToTransform } from '../vectormath';
 import StandardPartOptions from './StandardPartOptions';
 
@@ -56,7 +56,7 @@ const oledCut:Cut = {
 
 export default function makePart(options:StandardPartOptions):Part {
     const isCover = options.variationString == "cover";
-    const sketchDepth = decodeComplexAmount(options.sketchDepth, MM, distanceUnits);
+    const sketchDepth = decodeComplexAmount(options.sketchDepth, MM, DISTANCE_UNITS);
     const edgeDepth = options.variationString == "sketch" ? sketchDepth : Infinity;
 
     const components : Cut[] = [];

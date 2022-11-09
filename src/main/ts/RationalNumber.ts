@@ -31,7 +31,8 @@ export function multiply(a:RationalNumber, b:RationalNumber) {
 	})
 }
 
-export function divide(a:RationalNumber, b:RationalNumber) {
+export function divide(a:RationalNumber|number, b:RationalNumber|number) {
+	a = from(a); b = from(b);
 	return simplify({
 		numerator: a.numerator * b.denominator,
 		denominator: a.denominator * b.numerator,
