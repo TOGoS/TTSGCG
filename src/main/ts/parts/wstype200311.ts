@@ -37,9 +37,10 @@ function centeredLabel(text:string, font:Font, x:number, y:number, depth:number,
 // TODO: Maybe small breadboardesque holes on 0.1" grid
 
 export default function makePart(options:StandardPartOptions):Part {
-    const sketchDepth = decodeComplexAmount(options.sketchDepth, INCH, DISTANCE_UNITS);
+	const labelText = options.labelText ?? "WSTYPE-200311";
+	const sketchDepth = decodeComplexAmount(options.sketchDepth, INCH, DISTANCE_UNITS);
 	const labelDepth = decodeComplexAmount(options.labelDepth, INCH, DISTANCE_UNITS);
-    const edgeDepth = options.variationString == "sketch" ? sketchDepth : Infinity;
+	const edgeDepth = options.variationString == "sketch" ? sketchDepth : Infinity;
 	const pinholeDepth = Math.min(
 		options.maxPocketDepth ? decodeComplexAmount(options.maxPocketDepth, INCH, DISTANCE_UNITS) : Infinity,
 		3/16,
@@ -86,8 +87,8 @@ export default function makePart(options:StandardPartOptions):Part {
 	const decorationEdgeOffsetY = 5/8;
 	const pinholeYPositions = [decorationEdgeOffsetY, cy];
 
-	if( options.labelText.length > 0 && labelDepth > 0 ) {
-		components.push(centeredLabel(options.labelText, getFont("tog-line-letters"), cx, 3.5-decorationEdgeOffsetY, labelDepth, 3, 1/4));
+	if( labelText.length > 0 && labelDepth > 0 ) {
+		components.push(centeredLabel(labelText, getFont("tog-line-letters"), cx, 3.5-decorationEdgeOffsetY, labelDepth, 3, 1/4));
 	} else {
 		pinholeYPositions.push(3.5-decorationEdgeOffsetY);
 	}
