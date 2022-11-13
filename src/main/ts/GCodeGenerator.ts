@@ -920,7 +920,7 @@ import { Path } from './Shape2D';
 import Part from './Part';
 import { type } from 'os';
 import Unit, { findUnit, UnitTable, getUnit } from './Unit';
-import { DISTANCE_UNITS, inches, MM, millimeters } from './units';
+import { DISTANCE_UNITS, inches, MM, millimeters, ONE_MM } from './units';
 import { open, fstat, createWriteStream, WriteStream } from 'fs';
 import { Writable } from 'stream';
 import StandardPartOptions from './parts/StandardPartOptions';
@@ -1101,12 +1101,16 @@ if( require.main == module ) {
 		} else if( arg == '--test-countersink' ) {
 			jobPromises.push(Promise.resolve(cutToJob("Test countersink", flatheadNumberSixHole)));
 		} else if( (m = /--part=(.*)$/.exec(arg)) ) {
+			if( workpieceThickness == undefined ) {
+				console.warn("--part specified before --thickness; thickness cannot be taken into account for part generation");
+			}
 			const currentTransform = getTransformation();
 			const currentParams:StandardPartOptions = {
 				labelText: label,
 				labelDepth: labelDepth,
 				sketchDepth: sketchDepth,
 				variationString,
+				maxPocketDepth: workpieceThickness ? addComplexAmounts(workpieceThickness, ONE_MM) : undefined,
 			};
 			// TODO: Use dynamic imports to load the part
 			jobPromises.push(

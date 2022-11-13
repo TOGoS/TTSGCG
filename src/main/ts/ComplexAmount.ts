@@ -1,3 +1,4 @@
+import { type } from 'os';
 import RationalNumber, { from, multiply, add, parse, format } from './RationalNumber';
 import Unit, { UnitTable, getUnit } from './Unit';
 
@@ -47,10 +48,16 @@ export function parseComplexAmount(caStr:string, unitTable:UnitTable):ComplexAmo
 	}
 }
 
-export function decodeComplexAmount(amount:ComplexAmount, nativeUnit:Unit, unitTable:UnitTable):number {
+function unitName(unit:Unit|string) : string {
+	return (typeof(unit) == 'object') ? unit.name : unit;
+}
+
+export function decodeComplexAmount(amount:ComplexAmount, nativeUnit:Unit|string, unitTable:UnitTable):number {
+	const nativeUnitName = unitName(nativeUnit);
+	if( typeof(nativeUnit) == 'string' ) nativeUnit = unitTable[nativeUnit];
 	let total = 0;
 	for( let unitName in amount ) {
-		if( unitName == nativeUnit.name ) {
+		if( unitName == nativeUnitName ) {
 			total += amount[unitName].numerator / amount[unitName].denominator;
 		} else {
 			let unit = getUnit(unitName, unitTable);
@@ -67,9 +74,7 @@ export function decodeComplexAmount(amount:ComplexAmount, nativeUnit:Unit, unitT
  * which allows us to not require a unit table to be passed-in.
  */
 export function simpleDecodeComplexAmount(amount:ComplexAmount, nativeUnit:Unit|string) : number {
-	if( typeof(nativeUnit) == 'object' ) {
-		nativeUnit = nativeUnit.name;
-	}
+	nativeUnit = unitName(nativeUnit);
 	for( let k in amount ) {
 		if( k == nativeUnit ) return amount[k].numerator / amount[k].denominator;
 	}

@@ -7,12 +7,13 @@
  */
 
 import StandardPartOptions from './StandardPartOptions';
-import { decodeComplexAmount } from '../ComplexAmount';
+import { decodeComplexAmount, simpleDecodeComplexAmount } from '../ComplexAmount';
 import Cut, { identityTransformations, RoundHole } from '../Cut';
 import Part from '../Part';
 import { DISTANCE_UNITS, inches, millimeters, INCH, ONE_INCH } from '../units';
-import { led5mmHoleDiameter, led5mmPanelHole, toggleButtonHoleDiameter, toggleButtonPanelHole } from './commonholes';
+import { dupontPinWidth, led5mmHoleDiameter, led5mmPanelHole, makeLm2596Pad, solderJunctionPocketDiameter, toggleButtonHoleDiameter, toggleButtonPanelHole } from './commonholes';
 import { TOGRackPanelOptions, makeTogRackPanelOutline, makeTogRackPanelHoles } from './tograckpanel';
+import { rectangularArray, roundHole } from '../cuts';
 
 // Draft design as of 2022-11-09.
 // TODO: Consider spacing button holes farther for LM2596 converter to sit between
@@ -21,17 +22,26 @@ import { TOGRackPanelOptions, makeTogRackPanelOutline, makeTogRackPanelHoles } f
 export default function makePart(options:StandardPartOptions):Part {
     const sketchDepth = decodeComplexAmount(options.sketchDepth, INCH, DISTANCE_UNITS);
     const edgeDepth = options.variationString == "sketch" ? sketchDepth : Infinity;
+	const pinholeDepth = Math.min(
+		options.maxPocketDepth ? decodeComplexAmount(options.maxPocketDepth, INCH, DISTANCE_UNITS) : Infinity,
+		3/16,
+	);
+
+	const pinHole = roundHole(decodeComplexAmount(dupontPinWidth, INCH, DISTANCE_UNITS), pinholeDepth);
+	const sjHole = roundHole(decodeComplexAmount(solderJunctionPocketDiameter, INCH, DISTANCE_UNITS), pinholeDepth);
 	
 	const components : Cut[] = [];
 	const panelOpts : TOGRackPanelOptions = {length: 3.5};
+	const cx = panelOpts.length/2;
+	const cy = 3.5/2;
+	const centerPosition = { x: cx, y: cy };
 	
-	components.push(makeTogRackPanelOutline(panelOpts))
 	components.push(makeTogRackPanelHoles(panelOpts));
 	const buttonHolePositions = [];
 	const ledHolePositions = [];
-	for( let x of [-1, 1] ) for( let y of [-1, 1] ) {
-		buttonHolePositions.push({x: x*0.75+panelOpts.length/2, y: y*0.75+1.75});
-		ledHolePositions.push(   {x: x*(1+3/8)+panelOpts.length/2, y: y*0.75+1.75});
+	for( let i of [-1, 1] ) for( let j of [-1, 1] ) {
+		buttonHolePositions.push({x: cx + i*(1    ), y: cy + j*0.50});
+		ledHolePositions.push(   {x: cx + i*(1+1/2), y: cy + j*0.50});
 	}
 	components.push({
 		classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
@@ -43,6 +53,28 @@ export default function makePart(options:StandardPartOptions):Part {
 		transformations: ledHolePositions,
 		components: [led5mmPanelHole]
 	});
+	components.push({
+		classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
+		transformations: [centerPosition],
+		components: [
+			makeLm2596Pad({
+				pinhole: sjHole,
+				outlineDepth: sketchDepth,
+				unitName: "inch",
+			}),
+		]
+	});
+	/*
+	components.push(rectangularArray(
+		[pinHole],
+		{countX: 31, countY: 5, dx:1/10, dy:1/10, cx, cy}
+	));
+	*/
+	components.push(rectangularArray(
+		[sjHole],
+		{countX: 8, countY: 1, dx:4/10, dy:1/2, cx, cy}
+	));
+	components.push(makeTogRackPanelOutline(panelOpts));
 	
 	return {
 		name: "WSTYPE-200311",
