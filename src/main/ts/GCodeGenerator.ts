@@ -932,14 +932,14 @@ if( require.main == module ) {
 	let includeOutline = true;
 	let includeHoles = true;
 	let includeLabel = true;
-	let label = "TTSGCG";
+	let label = "";
 	let labelFontName = "tog-block-letters";
 	let bitTipSize = inches(0.01);
 	let bitAngle = 11;
 	let workpieceThickness:ComplexAmount|undefined = undefined;
 	let holeDiameter = 5/32;
-	let sketchDepth = millimeters(1);
-	let labelDepth = millimeters(1);
+	let sketchDepth = undefined;
+	let labelDepth = undefined;
 	let holeSpacing = 1/4; // Usually 1/2 is sufficient but why not do even better?!
 	let labelScale = 2.5/6; // Fits "TTSGCG" into 2.5 inches :P
 	let length = 1;
@@ -1107,10 +1107,10 @@ if( require.main == module ) {
 			const currentTransform = getTransformation();
 			const currentParams:StandardPartOptions = {
 				labelText: label,
-				labelDepth: labelDepth,
-				sketchDepth: sketchDepth,
+				labelDepth : labelDepth ?? millimeters(1),
+				sketchDepth: sketchDepth ?? labelDepth ?? millimeters(1),
 				variationString,
-				maxPocketDepth: workpieceThickness ? addComplexAmounts(workpieceThickness, ONE_MM) : undefined,
+				maxPocketDepth: workpieceThickness ? addComplexAmounts(workpieceThickness, scaleComplexAmount(ONE_MM,1)) : undefined,
 			};
 			// TODO: Use dynamic imports to load the part
 			jobPromises.push(

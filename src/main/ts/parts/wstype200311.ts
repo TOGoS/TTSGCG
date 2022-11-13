@@ -10,10 +10,27 @@ import StandardPartOptions from './StandardPartOptions';
 import { decodeComplexAmount, simpleDecodeComplexAmount } from '../ComplexAmount';
 import Cut, { identityTransformations, RoundHole } from '../Cut';
 import Part from '../Part';
+import { Font, textToCut } from '../text';
 import { DISTANCE_UNITS, inches, millimeters, INCH, ONE_INCH } from '../units';
 import { dupontPinWidth, led5mmHoleDiameter, led5mmPanelHole, makeLm2596Pad, solderJunctionPocketDiameter, toggleButtonHoleDiameter, toggleButtonPanelHole } from './commonholes';
 import { TOGRackPanelOptions, makeTogRackPanelOutline, makeTogRackPanelHoles } from './tograckpanel';
 import { rectangularArray, roundHole } from '../cuts';
+import { getFont } from '../fonts';
+
+function centeredLabel(text:string, font:Font, x:number, y:number, depth:number, maxWidth:number, maxHeight:number) : Cut {
+	// Assuming single line for now...
+	const nativeWidth = text.length;
+	const nativeHeight = 1;
+
+	const scale = Math.min( maxWidth / nativeWidth, maxHeight / nativeHeight );
+
+	return {
+		classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
+		transformations: [{x: x - (nativeWidth * scale)/2, y: y + scale/2, z: -depth, scale: scale}],
+		components: [textToCut(text, font)]
+	}
+}
+
 
 // Draft design as of 2022-11-09.
 // TODO: Consider spacing button holes farther for LM2596 converter to sit between
@@ -21,6 +38,7 @@ import { rectangularArray, roundHole } from '../cuts';
 
 export default function makePart(options:StandardPartOptions):Part {
     const sketchDepth = decodeComplexAmount(options.sketchDepth, INCH, DISTANCE_UNITS);
+	const labelDepth = decodeComplexAmount(options.labelDepth, INCH, DISTANCE_UNITS);
     const edgeDepth = options.variationString == "sketch" ? sketchDepth : Infinity;
 	const pinholeDepth = Math.min(
 		options.maxPocketDepth ? decodeComplexAmount(options.maxPocketDepth, INCH, DISTANCE_UNITS) : Infinity,
@@ -64,16 +82,24 @@ export default function makePart(options:StandardPartOptions):Part {
 			}),
 		]
 	});
-	/*
-	components.push(rectangularArray(
-		[pinHole],
-		{countX: 31, countY: 5, dx:1/10, dy:1/10, cx, cy}
-	));
-	*/
-	components.push(rectangularArray(
-		[sjHole],
-		{countX: 8, countY: 1, dx:4/10, dy:1/2, cx, cy}
-	));
+
+	const decorationEdgeOffsetY = 5/8;
+	const pinholeYPositions = [decorationEdgeOffsetY, cy];
+
+	if( options.labelText.length > 0 && labelDepth > 0 ) {
+		components.push(centeredLabel(options.labelText, getFont("tog-line-letters"), cx, 3.5-decorationEdgeOffsetY, labelDepth, 3, 1/4));
+	} else {
+		pinholeYPositions.push(3.5-decorationEdgeOffsetY);
+	}
+	
+	// Fat pinholes to provide places to solder wires together
+	// and have the joint be safely tucked away
+	for( const y of pinholeYPositions ) {
+		components.push(rectangularArray(
+			[sjHole],
+			{countX: 8, countY: 1, dx:4/10, dy:1/2, cx, cy:y}
+		));
+	}
 	components.push(makeTogRackPanelOutline(panelOpts));
 	
 	return {

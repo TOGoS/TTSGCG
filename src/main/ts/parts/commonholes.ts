@@ -15,7 +15,7 @@ export const toggleButtonHoleDiameter     = {"inch": frac( 1,  2)};
 
 /** Approximate size of a 'dupont' 1/10-spaced pin, which is supposedly 0.65mm */
 export const dupontPinWidth         = {"millimeter": frac(65, 100)};
-export const solderJunctionPocketDiameter = {"inch": frac( 1,  16)};
+export const solderJunctionPocketDiameter = {"inch": frac( 1,  20)}; // Enough to fit at least 4 small wires
 
 /** Cut with unit metadata addded */
 function cutWithUnit(cut:Cut, unit:ComplexAmount=ONE_INCH) : Cut {
