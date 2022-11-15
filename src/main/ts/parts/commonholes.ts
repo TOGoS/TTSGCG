@@ -2,10 +2,10 @@ import { spawn } from "child_process";
 import ComplexAmount, {decodeComplexAmount, simpleDecodeComplexAmount} from "../ComplexAmount";
 import { DISTANCE_UNITS, INCH, ONE_INCH } from "../units";
 import Cut, { identityTransformations } from "../Cut";
-import { rectangularArrayPoints, roundHole } from "../cuts";
+import { rectangularArrayPoints, roundHole, slot } from "../cuts";
 import { boxPath } from "../pathutils";
 import RationalNumber, {divide as frac} from "../RationalNumber";
-import Unit from "../Unit";
+import Unit, {UnitTable} from "../Unit";
 
 export const number6PanelHoleDiameter     = {"inch": frac( 5, 32)};
 export const barrelInletPanelHoleDiameter = {"inch": frac( 5, 16)};
@@ -17,24 +17,61 @@ export const toggleButtonHoleDiameter     = {"inch": frac( 1,  2)};
 export const dupontPinWidth         = {"millimeter": frac(65, 100)};
 export const solderJunctionPocketDiameter = {"inch": frac( 1,  20)}; // Enough to fit at least 4 small wires
 
+type Unitish = Unit|string|ComplexAmount;
+
+function isUnit(unit:Unit|ComplexAmount) : unit is Unit {
+	// Assuming nobody would ever use
+	// 'name' or 'unitValue' as a unit name...
+	return unit.name != undefined && unit.unitValue != undefined;
+}
+
+function unitToComplexAmount(unit:Unitish) : ComplexAmount {
+	if( typeof(unit) == 'string' ) {
+		return {[unit]: {numerator:1, denominator:1}};
+	} else if( isUnit(unit) ) {
+		return {[unit.name]: {numerator:1, denominator:1}};
+	} else {
+		return unit;
+	}
+}
+
 /** Cut with unit metadata addded */
-function cutWithUnit(cut:Cut, unit:ComplexAmount=ONE_INCH) : Cut {
+function cutWithUnit(cut:Cut, unit:Unitish=ONE_INCH) : Cut {
 	return {
 		classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
-		unit,
+		unit: unitToComplexAmount(unit),
 		transformations: identityTransformations,
 		components: [cut]
 	};
 }
 
-function roundHoleWithUnit(diameter:ComplexAmount|number, depth:ComplexAmount|number=Infinity, unit:Unit|string=INCH) : Cut {
-	return cutWithUnit(roundHole(
-		typeof(diameter) == 'object' ? decodeComplexAmount(diameter, unit, DISTANCE_UNITS) : diameter,
-		typeof(depth)    == 'object' ? decodeComplexAmount(depth, unit, DISTANCE_UNITS)    : depth   
-	));
+function decodeAmount(amt:number|ComplexAmount, unit:Unit|string, unitTable:UnitTable) : number {
+	return typeof(amt) == 'object' ? decodeComplexAmount(amt, unit, unitTable) : amt;
 }
 
+function roundHoleWithUnit(diameter:ComplexAmount|number, depth:ComplexAmount|number=Infinity, unit:Unit|string=INCH) : Cut {
+	return cutWithUnit(roundHole(
+		decodeAmount(diameter, unit, DISTANCE_UNITS),
+		decodeAmount(depth, unit, DISTANCE_UNITS),
+	), unit);
+}
+
+function slotWithUnit(
+	width:ComplexAmount|number,
+	height:ComplexAmount|number,
+	depth:ComplexAmount|number=Infinity,
+	unit:Unit|string=INCH
+) : Cut {
+	width  = decodeAmount(width , unit, DISTANCE_UNITS);
+	height = decodeAmount(height, unit, DISTANCE_UNITS);
+	depth  = decodeAmount(depth , unit, DISTANCE_UNITS);
+	return cutWithUnit(slot(width, height, depth), unit);
+}
+
+
 export const number6PanelHole      : Cut = roundHoleWithUnit(number6PanelHoleDiameter    );
+/** A number 6 panel hole, slightly long in the X direction */
+export const number6PanelSlot      : Cut = slotWithUnit(number6PanelHoleDiameter, 1/4, Infinity, INCH);
 export const barrelInletPanelHole  : Cut = roundHoleWithUnit(barrelInletPanelHoleDiameter);
 export const led5mmPanelHole       : Cut = {
 	classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",

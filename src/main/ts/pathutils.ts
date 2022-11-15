@@ -125,7 +125,7 @@ function figureEdge(x0:number|undefined, cx:number|undefined, width:number, varN
 
 // Creates a path that traces a rectangle counterclockwise,
 // optionally with beveled or rounded corners.
-export function boxPath(boxOptions:BoxOptions) {
+export function boxPath(boxOptions:BoxOptions) : Path {
 	const w = boxOptions.width;
 	const h = boxOptions.height;
 	const x0 = figureEdge(boxOptions.x0, boxOptions.cx, boxOptions.width, "x");

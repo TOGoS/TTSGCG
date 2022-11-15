@@ -1,5 +1,5 @@
 import Cut, { CompoundCut, identityTransformations, RoundHole } from "./Cut";
-import { circlePath } from "./pathutils";
+import { boxPath, circlePath } from "./pathutils";
 import { SimpleTransformation2D } from "./Transformish";
 
 type X0OrCx<T=number> = {x0:T} | {cx:T};
@@ -73,6 +73,18 @@ export function roundHole(diameter:number, depth:number) : RoundHole {
 		classRef: "http://ns.nuke24.net/TTSGCG/Cut/RoundHole",
 		diameter,
 		depth,
+	};
+}
+
+export function slot(width:number, height:number, depth:number) : Cut {
+	return {
+		classRef: "http://ns.nuke24.net/TTSGCG/Cut/TracePath",
+		path: boxPath({
+			cornerOptions: { cornerRadius: Math.min(width, height)/2, cornerStyleName: "Round" },
+			cx: 0, cy: 0,
+			width, height,
+		}),
+		spaceSide: "left", // box is counter-clockwise, so left is the 'inside' of the hole.
 	};
 }
 

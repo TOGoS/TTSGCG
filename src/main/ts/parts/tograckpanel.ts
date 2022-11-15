@@ -2,17 +2,52 @@ import Cut, { identityTransformations } from "../Cut";
 import { boxPath } from "../pathutils";
 import Part from "../Part";
 import { rectangularArray, rectangularArrayPoints } from "../cuts";
-import { number6PanelHole } from "./commonholes";
+import { number6PanelHole, number6PanelSlot } from "./commonholes";
+import { SimpleTransformation2D } from "../Transformish";
 
 export interface TOGRackPanelOptions {
     length : number; // In inches
+    holeStyleName? : "circular"|"alternating-ovals"
 }
 
 export const togRackPanelMountingHole:Cut = number6PanelHole;
 
 /** Generate an array of holes for a TOGRack panel; assumes top-left of panel is 0,0 */
 export function makeTogRackPanelHoles(options:TOGRackPanelOptions):Cut {
-    return rectangularArray([togRackPanelMountingHole], {x0: 0.25, y0:0.25, dx: 0.5, dy: 3.0, countX: options.length*2, countY:2});
+    const holeStyleName = options.holeStyleName ?? "circular";
+    if( holeStyleName == "circular" ) {
+        return rectangularArray([togRackPanelMountingHole], {x0: 0.25, y0:0.25, dx: 0.5, dy: 3.0, countX: options.length*2, countY:2});
+    } else if( holeStyleName == 'alternating-ovals' ) {
+        const wideHolePositions : SimpleTransformation2D[] = [];
+        const tallHolePositions : SimpleTransformation2D[]= [];
+        for( let i=0; i<options.length*2; ++i ) {
+            const topHolePositions    = (i&1) == 0 ? wideHolePositions : tallHolePositions;
+            const bottomHolePositions = (i&1) == 0 ? tallHolePositions : wideHolePositions;
+            topHolePositions.push(   {x: 0.25 + i*0.5, y:3.25});
+            bottomHolePositions.push({x: 0.25 + i*0.5, y:0.25});
+        }
+        for( let i=0; i<tallHolePositions.length; ++i ) {
+            tallHolePositions[i].rotation = {degree: 90};
+        }
+        return {
+            classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
+            transformations: identityTransformations,
+            components: [
+                {
+                    classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
+                    transformations: wideHolePositions,
+                    components: [number6PanelSlot],
+                },
+                {
+                    classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
+                    transformations: tallHolePositions,
+                    components: [number6PanelSlot],
+                },
+            ]
+        };
+    } else {
+        throw new Error(`Unrecognized TOGRack hole style name: ${holeStyleName}`);
+    }
 }
 
 export function makeTogRackPanelOutline(options:TOGRackPanelOptions):Cut {

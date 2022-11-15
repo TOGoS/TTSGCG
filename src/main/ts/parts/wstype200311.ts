@@ -50,7 +50,7 @@ export default function makePart(options:StandardPartOptions):Part {
 	const sjHole = roundHole(decodeComplexAmount(solderJunctionPocketDiameter, INCH, DISTANCE_UNITS), pinholeDepth);
 	
 	const components : Cut[] = [];
-	const panelOpts : TOGRackPanelOptions = {length: 3.5};
+	const panelOpts : TOGRackPanelOptions = {length: 3.5, holeStyleName:"alternating-ovals"};
 	const cx = panelOpts.length/2;
 	const cy = 3.5/2;
 	const centerPosition = { x: cx, y: cy };
