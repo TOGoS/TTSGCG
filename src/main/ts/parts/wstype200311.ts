@@ -50,7 +50,13 @@ export default function makePart(options:StandardPartOptions):Part {
 	const sjHole = roundHole(decodeComplexAmount(solderJunctionPocketDiameter, INCH, DISTANCE_UNITS), pinholeDepth);
 	
 	const components : Cut[] = [];
-	const panelOpts : TOGRackPanelOptions = {length: 3.5, holeStyleName:"alternating-ovals"};
+	const panelOpts : TOGRackPanelOptions = {
+		length: 3.5,
+		// Since the 3D-printed TOGRackBox, WSITEM-200314, isn't exactly square,
+		// make slighly larger holes and give some extra margin
+		holeStyleName: "alternating-ovals",
+		extraMargin: 1/20,
+	};
 	const cx = panelOpts.length/2;
 	const cy = 3.5/2;
 	const centerPosition = { x: cx, y: cy };

@@ -7,7 +7,8 @@ import { SimpleTransformation2D } from "../Transformish";
 
 export interface TOGRackPanelOptions {
     length : number; // In inches
-    holeStyleName? : "circular"|"alternating-ovals"
+    holeStyleName? : "circular"|"alternating-ovals",
+    extraMargin? : number; // Also in inches
 }
 
 export const togRackPanelMountingHole:Cut = number6PanelHole;
@@ -51,13 +52,18 @@ export function makeTogRackPanelHoles(options:TOGRackPanelOptions):Cut {
 }
 
 export function makeTogRackPanelOutline(options:TOGRackPanelOptions):Cut {
+    // Note: spaceSide: "middle" because otherwise I will need to do
+    // path-adjustment-based-on-bit-radius calculations, which I haven't
+    // yet gotten around to figuring out how to do.
+    // This will be a problem if/when I go to use a larger bit.
+    const extraMargin = options.extraMargin ?? 0;
     return {
         classRef: "http://ns.nuke24.net/TTSGCG/Cut/TracePath",
         depth: Infinity,
-        spaceSide: "middle", 
+        spaceSide: "middle",
         path: boxPath({
-            x0: 0, y0: 0,
-            width: options.length, height: 3.5,
+            x0: extraMargin, y0: extraMargin,
+            width: options.length - extraMargin*2, height: 3.5 - extraMargin*2,
             cornerOptions: {
                 cornerRadius: 1/4,
                 cornerStyleName: "Round"
