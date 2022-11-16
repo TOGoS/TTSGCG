@@ -41,6 +41,7 @@ export default function makePart(options:StandardPartOptions):Part {
 	const sketchDepth = decodeComplexAmount(options.sketchDepth, INCH, DISTANCE_UNITS);
 	const labelDepth = decodeComplexAmount(options.labelDepth, INCH, DISTANCE_UNITS);
 	const edgeDepth = options.variationString == "sketch" ? sketchDepth : Infinity;
+	const extraMargin = 1/32;
 	const pinholeDepth = Math.min(
 		options.maxPocketDepth ? decodeComplexAmount(options.maxPocketDepth, INCH, DISTANCE_UNITS) : Infinity,
 		3/16,
@@ -55,12 +56,26 @@ export default function makePart(options:StandardPartOptions):Part {
 		// Since the 3D-printed TOGRackBox, WSITEM-200314, isn't exactly square,
 		// make slighly larger holes and give some extra margin
 		holeStyleName: "alternating-ovals",
-		extraMargin: 1/20,
+		extraMargin,
 	};
 	const cx = panelOpts.length/2;
 	const cy = 3.5/2;
 	const centerPosition = { x: cx, y: cy };
 	
+	components.push({
+		classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
+		components: [{
+			classRef: "http://ns.nuke24.net/TTSGCG/Cut/RoundHole",
+			diameter: 0,
+			depth: sketchDepth,
+		}],
+		transformations: [
+			{x:                  extraMargin, y:     extraMargin},
+			{x: panelOpts.length-extraMargin, y:     extraMargin},
+			{x: panelOpts.length-extraMargin, y: 3.5-extraMargin},
+			{x:                  extraMargin, y: 3.5-extraMargin},
+		]
+	});
 	components.push(makeTogRackPanelHoles(panelOpts));
 	const buttonHolePositions = [];
 	const ledHolePositions = [];
