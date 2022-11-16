@@ -85,6 +85,7 @@ export function slot(width:number, height:number, depth:number) : Cut {
 			width, height,
 		}),
 		spaceSide: "left", // box is counter-clockwise, so left is the 'inside' of the hole.
+		depth,
 	};
 }
 
