@@ -542,7 +542,6 @@ class SVGGenerator extends ShapeProcessorBase {
 	processPath(path:Path) {
 		let dParts:string[] = [];
 		let vertexes = path.vertexes as ModelVector[];
-		let started = false;
 		let prevVertexIndex:number|undefined = undefined;
 		for( let s in path.segments ) {
 			let seg = path.segments[s];
@@ -570,7 +569,14 @@ class SVGGenerator extends ShapeProcessorBase {
 			}
 			prevVertexIndex = seg.endVertexIndex;
 		}
-		this.openElement("path", {"fill": "none", "stroke-linecap": "round", "stroke-linejoin": "round", "stroke": this.strokeColor, "stroke-width": this.strokeWidth, "d": dParts.join(" ")}, true);
+		this.openElement("path", {
+			"fill": "none",
+			"stroke-linecap": "round",
+			"stroke-linejoin": "round",
+			"stroke": this.strokeColor,
+			"stroke-width": this.strokeWidth,
+			"d": dParts.join(" ")
+		}, true);
 	}
 
 	emitCircle(diameter:number) {
@@ -578,16 +584,20 @@ class SVGGenerator extends ShapeProcessorBase {
 		this.openElement("circle", {
 			cx: xfPos.x, cy: xfPos.y,
 			r: diameter/2,
-			fill: this.strokeColor,
-			"stroke-width": 0,
+			//fill: this.strokeColor,
+			"fill": "none",
+			"stroke": this.strokeColor,
+			"stroke-width": this.strokeWidth,
 		}, true);
 	}
 
 	processCircle(diameter:ModelDistance) {
 		let extraDiam = 0;
+		/*
 		if(this.currentMode == "top") {
 			extraDiam = this.bitDiameterAtDepth(this.clampedDepth) - this.bitDiameterAtDepth(0);
 		}
+		*/
 		const circleDiameter = Math.max(this.transformHorizontalDistance(diameter), this.strokeWidth) + extraDiam;
 		this.emitCircle(circleDiameter);
 	}
