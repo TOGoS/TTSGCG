@@ -19,9 +19,11 @@ export interface TOGRackPanelOptions {
 	labelFontSize?: ComplexAmount;
 	labelFontName?: string;
 	labelDepth?: ComplexAmount;
+	sketchDepth?: ComplexAmount;
 	extraCuts?: Cut[];
 }
 
+const DEFAULT_SKETCH_DEPTH = camt.from("1/32in", DISTANCE_UNITS);
 const DEFAULT_LABEL_FONT_SIZE = camt.from("3/8in", DISTANCE_UNITS);
 
 export const togRackPanelMountingHole:Cut = number6PanelHole;
@@ -84,6 +86,23 @@ export function makeTogRackPanelOutline(options:TOGRackPanelOptions):Cut {
 
 export function makeTogRackPanel(options:TOGRackPanelOptions):Cut {
 	const components : Cut[] = [];
+	const sketchDepth = camt.decode(options.sketchDepth ?? DEFAULT_SKETCH_DEPTH, "inch", DISTANCE_UNITS);
+	const lengthInches = camt.decode(options.length, "inch", DISTANCE_UNITS);
+	const extraMarginInches = 0; // fer now; see WSTYP200311
+	components.push({
+		classRef: "http://ns.nuke24.net/TTSGCG/Cut/Compound",
+		components: [{
+			classRef: "http://ns.nuke24.net/TTSGCG/Cut/RoundHole",
+			diameter: 0,
+			depth: sketchDepth,
+		}],
+		transformations: [
+			{x:              extraMarginInches, y:     extraMarginInches},
+			{x: lengthInches-extraMarginInches, y:     extraMarginInches},
+			{x: lengthInches-extraMarginInches, y: 3.5-extraMarginInches},
+			{x:              extraMarginInches, y: 3.5-extraMarginInches},
+		]
+	});
 	components.push(makeTogRackPanelHoles(options));
 	if( options.labelText && options.labelText.length > 0 ) {
 		const font = getFont(options.labelFontName ?? "tog-line-letters");
