@@ -25,6 +25,7 @@ export function makePart(params:{[k:string]: any}) : Part {
 			dx: 1/10,
 			dy: 1/10,
 		}).filter( point => ( point.x > 2+7/10 || point.y < 3-4/10 ) );
+		// TODO: Use actual text dimensions
 
 	options.extraCuts = [
 		{
