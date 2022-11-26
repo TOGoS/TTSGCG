@@ -1,7 +1,7 @@
 import Part from "../Part";
 import Cut, { identityTransformations } from "../Cut";
 import { boxPath } from "../pathutils";
-import { makeTogRackPanelOutlineAndHoles } from "./tograckpanel";
+import { makeTogRackPanel } from "./tograckpanel";
 import { SimpleTransformation2D } from "../Transformish";
 import { rectangularArray } from "../cuts";
 
@@ -43,7 +43,7 @@ export default function makePart():Part {
                     countX: 1, dx: 1,
                     countY: 5, dy: 0.5
                 }),
-                makeTogRackPanelOutlineAndHoles({length: 3.5}),
+                makeTogRackPanel({length: {"inch": {numerator: 7, denominator: 2}}}),
             ],
         },
         name: "WSTYPE-200048"

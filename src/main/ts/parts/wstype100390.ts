@@ -9,7 +9,7 @@ import { inches, INCH, DISTANCE_UNITS } from '../units';
 import { textToCut, Font } from '../text';
 import { getFont } from '../fonts';
 import Transformish from '../Transformish';
-import ComplexAmount, { decodeComplexAmount } from '../ComplexAmount';
+import ComplexAmount, * as camt from '../ComplexAmount';
 import { sketchHole } from '../cuts';
 
 function mmAsInches(mm:number) {
@@ -90,8 +90,8 @@ export default function makePart(partOptions:PartOptions):Part {
 
 	const panelWidth = 4.75;
 	const isSketch = partOptions.variationString == "sketch";
-	const sketchOutlineDepth = decodeComplexAmount(partOptions.sketchDepth ?? inches(1/24), partUnit, DISTANCE_UNITS); // Lines for eyeballs
-	const labelDepth = decodeComplexAmount(partOptions.labelDepth ?? inches(1/8), partUnit, DISTANCE_UNITS);
+	const sketchOutlineDepth = camt.decode(partOptions.sketchDepth ?? inches(1/24), partUnit, DISTANCE_UNITS); // Lines for eyeballs
+	const labelDepth = camt.decode(partOptions.labelDepth ?? inches(1/8), partUnit, DISTANCE_UNITS);
 	const sketchPointDepth = 1/8; // Points for drill bits
 	const edgeDepth = isSketch ? sketchOutlineDepth : Infinity;
 

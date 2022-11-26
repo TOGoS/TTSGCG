@@ -6,7 +6,7 @@ import { TransformationMatrix3D, Vector3D, zeroVector } from './vectormath';
 import Cut, { ConicPocket, Pause } from './Cut';
 import { CornerStyleName, circlePath } from './pathutils';
 import * as rational from './RationalNumber';
-import ComplexAmount, { decodeComplexAmount, addComplexAmounts, scaleComplexAmount, parseComplexAmount, formatComplexAmount } from './ComplexAmount';
+import ComplexAmount, { decodeComplexAmount, add, scale, parse, format } from './ComplexAmount';
 import Transformish, { toTransformationMatrix3D } from './Transformish';
 
 function vectorToString(v:Vector3D, digits=4):string {
@@ -120,7 +120,7 @@ abstract class ShapeProcessorBase {
 		}
 		let scale = this.decodeComplexAmount(unit) / this.decodeComplexAmount(this.currentUnit);
 		if( !isFinite(scale) ) {
-			throw new Error("Switching base unit from "+formatComplexAmount(this.currentUnit)+" to "+formatComplexAmount(unit)+", which means scaling by "+scale.toFixed(4));
+			throw new Error("Switching base unit from "+format(this.currentUnit)+" to "+format(unit)+", which means scaling by "+scale.toFixed(4));
 		}
 		let oldUnit = this.currentUnit;
 		this.currentUnit = unit;
@@ -324,7 +324,7 @@ class GCodeGenerator extends ShapeProcessorBase {
 		this.emitLine("M03");
 		this.zoomToZoomHeight();
 		this.emitBlankLine();
-		this.emitComment("Bit tip diameter: "+formatComplexAmount(this.jobContext.routerBit.diameterFunction({})));
+		this.emitComment("Bit tip diameter: "+format(this.jobContext.routerBit.diameterFunction({})));
 	}
 	emitShutdownCode():void {
 		this.emitBlankLine();
@@ -745,7 +745,7 @@ function makeVBit(degrees:number, pointSize:ComplexAmount):RouterBit {
 	const pointSizeMm = decodeComplexAmount(pointSize, MM, DISTANCE_UNITS);
 	return {
 		name: (pointSizeMm > 0 ? pointSize + "in-tip " : "") + degrees+"-degree carving bit",
-		diameterFunction: (depth) => addComplexAmounts(pointSize, scaleComplexAmount(depth, {numerator:twiceSlope, denominator:1})),
+		diameterFunction: (depth) => add(pointSize, scale(depth, {numerator:twiceSlope, denominator:1})),
 	}
 }
 
@@ -939,21 +939,22 @@ type OutputFormatID = "svg"|"gcode"|"bounds";
 
 if( require.main == module ) {
 	let variationString : "full"|"sketch"|string = "full"; // Some parts support this parameter
-	let includeOutline = true;
-	let includeHoles = true;
-	let includeLabel = true;
+	//let includeOutline = true;
+	//let includeHoles = true;
+	//let includeLabel = true;
 	let label = "";
-	let labelFontName = "tog-block-letters";
+	//let labelFontName = "tog-block-letters";
 	let bitTipSize = inches(0.01);
 	let bitAngle = 11;
 	let workpieceThickness:ComplexAmount|undefined = undefined;
-	let holeDiameter = 5/32;
+	//let holeDiameter = 5/32;
 	let sketchDepth = undefined;
 	let labelDepth = undefined;
-	let holeSpacing = 1/4; // Usually 1/2 is sufficient but why not do even better?!
-	let labelScale = 2.5/6; // Fits "TTSGCG" into 2.5 inches :P
-	let length = 1;
-	let labelDirection:LatOrLong = "lateral";
+	//let holeSpacing = 1/4; // Usually 1/2 is sufficient but why not do even better?!
+	//let labelScale = 2.5/6; // Fits "TTSGCG" into 2.5 inches :P
+	let partOptions : {[k:string]: string} = {};
+	//let length = 1;
+	//let labelDirection:LatOrLong = "lateral";
 
 	let outputFiles:{[filename:string]: OutputFormatID} = {};
 	let padding:ComplexAmount = inches(0.5);
@@ -1001,29 +1002,37 @@ if( require.main == module ) {
 
 	const jobPromises:Promise<Job>[] = [];
 
+	// TODO: Clean these up, make clearer separation between core options
+	// and part-specific options
+
 	for( let i=2; i<process.argv.length; ++i ) {
 		let m;
 		let arg = process.argv[i];
 		if( arg == "--no-outline" ) {
-			includeOutline = false;
+			throw new Error(`${arg} not currently supported`);
+			//includeOutline = false;
 		} else if( arg == "--no-holes" ) {
-			includeHoles = false;
+			throw new Error(`${arg} not currently supported`);
+			//includeHoles = false;
 		} else if( arg == '--holes-only' ) {
-			includeHoles = true;
-			includeOutline = false;
-			includeLabel = false;
+			throw new Error(`${arg} not currently supported`);
+			//includeHoles = true;
+			//includeOutline = false;
+			//includeLabel = false;
 		} else if( arg == '--outline-only' ) {
-			includeHoles = false;
-			includeOutline = true;
-			includeLabel = false;
+			throw new Error(`${arg} not currently supported`);
+			//includeHoles = false;
+			//includeOutline = true;
+			//includeLabel = false;
 		} else if( arg == '--sketch' ) {
 			variationString = "sketch";
 		} else if( (m = /--sketch-depth=(.*)/.exec(arg)) ) {
-			sketchDepth = parseComplexAmount(m[1], DISTANCE_UNITS);
+			sketchDepth = parse(m[1], DISTANCE_UNITS);
 		} else if( arg == '--label-only' ) {
-			includeHoles = false;
-			includeOutline = false;
-			includeLabel = true;
+			throw new Error(`${arg} not currently supported`);
+			//includeHoles = false;
+			//includeOutline = false;
+			//includeLabel = true;
 		} else if( (m = /^--variation=(.*)/.exec(arg)) ) {
 			variationString = m[1];
 		} else if( (m = /^--offset=([^,]*),([^,]*),([^,]*)$/.exec(arg)) ) {
@@ -1038,21 +1047,25 @@ if( require.main == module ) {
 		} else if( (m = /^--native-unit=(.*)$/.exec(arg)) ) {
 			nativeUnit = getUnit(m[1], DISTANCE_UNITS);
 		} else if( (m = /^--thickness=(.*)$/.exec(arg)) ) {
-			workpieceThickness = parseComplexAmount(m[1], DISTANCE_UNITS);
+			workpieceThickness = parse(m[1], DISTANCE_UNITS);
 		} else if( (m = /^--label=(.*)$/.exec(arg)) ) {
 			label = m[1];
 		} else if( (m = /^--label-font=(.*)$/.exec(arg)) ) {
-			labelFontName = m[1];
+			throw new Error(`${arg} not currently supported`);
+			//labelFontName = m[1];
 		} else if( (m = /^--label-direction=(longitudinal|lateral)$/.exec(arg)) ) {
-			labelDirection = <LatOrLong>m[1];
+			throw new Error(`${arg} not currently supported`);
+			//labelDirection = <LatOrLong>m[1];
 		} else if( (m = /^--label-depth=(.*)$/.exec(arg)) ) {
-			labelDepth = parseComplexAmount(m[1], DISTANCE_UNITS);
+			labelDepth = parse(m[1], DISTANCE_UNITS);
 		} else if( (m = /^--bit-diameter=(.+)$/.exec(arg)) ) {
-			bitTipSize = parseComplexAmount(m[1], DISTANCE_UNITS);
+			bitTipSize = parse(m[1], DISTANCE_UNITS);
 		} else if( (m = /^--bit-angle=(.+)$/.exec(arg)) ) {
 			bitAngle = parseNumber(m[1]);
 		} else if( (m = /^--padding=(.*)$/.exec(arg)) ) {
-			padding = parseComplexAmount(m[1], DISTANCE_UNITS);
+			padding = parse(m[1], DISTANCE_UNITS);
+		} else if( (m = /^--part-option:([^=]+)=(.*)$/.exec(arg))) {
+			partOptions[m[1]] = m[2];
 		} else if( arg == "--output-bounds" ) {
 			outputFiles["-"] = "bounds";
 		} else if( (m = /^--gcode-comment-mode=(none|semicolon|parentheses)$/.exec(arg)) ) {
@@ -1120,7 +1133,8 @@ if( require.main == module ) {
 				labelDepth : labelDepth ?? millimeters(1),
 				sketchDepth: sketchDepth ?? labelDepth ?? millimeters(1),
 				variationString,
-				maxPocketDepth: workpieceThickness ? addComplexAmounts(workpieceThickness, scaleComplexAmount(ONE_MM,1)) : undefined,
+				maxPocketDepth: workpieceThickness ? add(workpieceThickness, scale(ONE_MM,1)) : undefined,
+				...partOptions,
 			};
 			// TODO: Use dynamic imports to load the part
 			jobPromises.push(
@@ -1141,7 +1155,7 @@ if( require.main == module ) {
 
 	const jobContext:JobContext = {
 		nativeUnit,
-		minZ: scaleComplexAmount(workpieceThickness, -1),
+		minZ: scale(workpieceThickness, -1),
 		routerBit: makeBit(),
 	};
 

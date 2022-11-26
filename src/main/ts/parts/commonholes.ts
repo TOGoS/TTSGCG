@@ -1,5 +1,5 @@
 import { spawn } from "child_process";
-import ComplexAmount, {decodeComplexAmount, simpleDecodeComplexAmount} from "../ComplexAmount";
+import ComplexAmount, * as camt from "../ComplexAmount";
 import { DISTANCE_UNITS, INCH, ONE_INCH } from "../units";
 import Cut, { identityTransformations } from "../Cut";
 import { rectangularArrayPoints, roundHole, slot } from "../cuts";
@@ -46,7 +46,7 @@ function cutWithUnit(cut:Cut, unit:Unitish=ONE_INCH) : Cut {
 }
 
 function decodeAmount(amt:number|ComplexAmount, unit:Unit|string, unitTable:UnitTable) : number {
-	return typeof(amt) == 'object' ? decodeComplexAmount(amt, unit, unitTable) : amt;
+	return typeof(amt) == 'object' ? camt.decode(amt, unit, unitTable) : amt;
 }
 
 function roundHoleWithUnit(diameter:ComplexAmount|number, depth:ComplexAmount|number=Infinity, unit:Unit|string=INCH) : Cut {
@@ -89,8 +89,8 @@ export const lm2596Width     : ComplexAmount = {"inch": frac( 84, 100)};
 export const lm2596Height    : ComplexAmount = {"inch": frac(170, 100)};
 export const lm2596PinHoleDx : ComplexAmount = {"inch": frac( 70, 100)};
 export const lm2596PinHoleDy : ComplexAmount = {"inch": frac(157, 100)};
-export const lm2596PinHoleDxInches = simpleDecodeComplexAmount(lm2596PinHoleDx, "inch");
-export const lm2596PinHoleDyInches = simpleDecodeComplexAmount(lm2596PinHoleDy, "inch");
+export const lm2596PinHoleDxInches = camt.simpleDecode(lm2596PinHoleDx, "inch");
+export const lm2596PinHoleDyInches = camt.simpleDecode(lm2596PinHoleDy, "inch");
 export const lm2596HolePositionsInches = rectangularArrayPoints({
 	dx: lm2596PinHoleDxInches,
 	dy: lm2596PinHoleDyInches,
@@ -100,13 +100,16 @@ export const lm2596HolePositionsInches = rectangularArrayPoints({
 	cy: 0,
 });
 
-function makeWireJunctionHole(options:{depth:number, unitName:"inch"}) : Cut {
+function makeSoldereJunctionHole(options:{depth:number, unitName:"inch"}) : Cut {
 	return {
 		classRef: "http://ns.nuke24.net/TTSGCG/Cut/RoundHole",
 		depth: options.depth,
-		diameter: simpleDecodeComplexAmount(solderJunctionPocketDiameter, options.unitName),
+		diameter: camt.simpleDecode(solderJunctionPocketDiameter, options.unitName),
 	};
 }
+export const solderJunctionHole = makeSoldereJunctionHole({depth: Infinity, unitName: "inch"});
+
+export const pinHole = roundHole(0,Infinity);
 
 export function makeLm2596Pad(options:{pinhole?:Cut, outlineDepth:number, unitName:"inch"}) : Cut {
 	const components : Cut[] = [];
@@ -123,8 +126,8 @@ export function makeLm2596Pad(options:{pinhole?:Cut, outlineDepth:number, unitNa
 			path: boxPath({
 				cornerOptions: {cornerRadius: 0, cornerStyleName: "Round"},
 				cx: 0, cy: 0,
-				width : simpleDecodeComplexAmount(lm2596Width , options.unitName),
-				height: simpleDecodeComplexAmount(lm2596Height, options.unitName),
+				width : camt.simpleDecode(lm2596Width , options.unitName),
+				height: camt.simpleDecode(lm2596Height, options.unitName),
 			}),
 			depth: options.outlineDepth,
 			spaceSide: "middle",

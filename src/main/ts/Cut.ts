@@ -6,6 +6,9 @@ import ComplexAmount from './ComplexAmount';
 export interface TracePath {
 	classRef: "http://ns.nuke24.net/TTSGCG/Cut/TracePath";
 	path: Path;
+	// TODO: Does this override 'z' of path vertexes?  Add to them?
+	// How does depth interact with current transform?
+	// Maybe we should do away with 'depth' and just use the current Z?
 	depth?: number;
 	spaceSide: "left"|"right"|"middle"; // Compensate for bit radius?
 }

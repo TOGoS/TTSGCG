@@ -234,8 +234,9 @@ export const togLineLetters:Font = (() => {
 	return {
 		characters: {
 			"A": mkblok([[ea,ac,ec],[bc,bd]]),
-			"B": mkblok([[aa,ea,ed,[cleft,cd],cd,[cleft,bd], ad,aa],[ca,cd]]),
+			"B": mkblok([[aa,ea,ed,[cleft,dd],cd,[cleft,bd],ad,aa],[ca,cd]]),
 			"C": mkblok([[ae,ac,[cleft,cc],ec,ee]]),
+			"D": mkblok([[ac,aa,ea,ec,[cleft,cc],ac]]),
 			"E": mkblok([[ae,aa,ea,ee],[ca,ce]]),
 			"F": mkblok([[ae,aa,ea],[ca,ce]]),
 			"G": mkblok([[ae,ac,[cleft,cc],ec,ee,ce,cc]]),
@@ -246,6 +247,7 @@ export const togLineLetters:Font = (() => {
 			"N": mkblok([[ea,aa,ee,ae]]),
 			"O": mkblok([oCut]),
 			"P": mkblok([[ca,aa,ad,[cright,bd],cd,ca,ea]]),
+			"R": mkblok([[ca,aa,ad,[cright,bd],cd,ca,ea],[cc,ee]]),
 			"S": mkblok([[ae,ab,[cleft,bb],cb,cd,[cright,dd],ed,ea]]),
 			"T": mkblok([[aa,ae],[ac,ec]]),
 			"W": mkblok([[aa,da,[cleft,db],dc,[cleft,dd],de,ae],[ac,dc]]),

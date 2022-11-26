@@ -7,7 +7,7 @@
  */
 
 import StandardPartOptions from './StandardPartOptions';
-import { decodeComplexAmount, simpleDecodeComplexAmount } from '../ComplexAmount';
+import * as camt from '../ComplexAmount';
 import Cut, { identityTransformations, RoundHole } from '../Cut';
 import Part from '../Part';
 import { Font, textToCut } from '../text';
@@ -38,27 +38,29 @@ function centeredLabel(text:string, font:Font, x:number, y:number, depth:number,
 
 export default function makePart(options:StandardPartOptions):Part {
 	const labelText = options.labelText ?? "WSTYPE-200311";
-	const sketchDepth = decodeComplexAmount(options.sketchDepth, INCH, DISTANCE_UNITS);
-	const labelDepth = decodeComplexAmount(options.labelDepth, INCH, DISTANCE_UNITS);
+	const sketchDepth = camt.decode(options.sketchDepth, INCH, DISTANCE_UNITS);
+	const labelDepth = camt.decode(options.labelDepth, INCH, DISTANCE_UNITS);
 	const edgeDepth = options.variationString == "sketch" ? sketchDepth : Infinity;
-	const extraMargin = 1/32;
+	const extraMargin = {"inch": {numerator: 1, denominator: 32}};
 	const pinholeDepth = Math.min(
-		options.maxPocketDepth ? decodeComplexAmount(options.maxPocketDepth, INCH, DISTANCE_UNITS) : Infinity,
+		options.maxPocketDepth ? camt.decode(options.maxPocketDepth, INCH, DISTANCE_UNITS) : Infinity,
 		3/16,
 	);
 
-	const pinHole = roundHole(decodeComplexAmount(dupontPinWidth, INCH, DISTANCE_UNITS), pinholeDepth);
-	const sjHole = roundHole(decodeComplexAmount(solderJunctionPocketDiameter, INCH, DISTANCE_UNITS), pinholeDepth);
+	const pinHole = roundHole(camt.decode(dupontPinWidth, INCH, DISTANCE_UNITS), pinholeDepth);
+	const sjHole = roundHole(camt.decode(solderJunctionPocketDiameter, INCH, DISTANCE_UNITS), pinholeDepth);
 	
 	const components : Cut[] = [];
 	const panelOpts : TOGRackPanelOptions = {
-		length: 3.5,
+		length: {"inch": {numerator: 7, denominator: 2}},
 		// Since the 3D-printed TOGRackBox, WSITEM-200314, isn't exactly square,
 		// make slighly larger holes and give some extra margin
 		holeStyleName: "alternating-ovals",
 		extraMargin,
 	};
-	const cx = panelOpts.length/2;
+	const extraMarginInches = camt.decode(extraMargin, "inch", DISTANCE_UNITS);
+	const lengthInches = camt.decode(panelOpts.length, "inch", DISTANCE_UNITS);
+	const cx = lengthInches/2;
 	const cy = 3.5/2;
 	const centerPosition = { x: cx, y: cy };
 	
@@ -70,10 +72,10 @@ export default function makePart(options:StandardPartOptions):Part {
 			depth: sketchDepth,
 		}],
 		transformations: [
-			{x:                  extraMargin, y:     extraMargin},
-			{x: panelOpts.length-extraMargin, y:     extraMargin},
-			{x: panelOpts.length-extraMargin, y: 3.5-extraMargin},
-			{x:                  extraMargin, y: 3.5-extraMargin},
+			{x:              extraMarginInches, y:     extraMarginInches},
+			{x: lengthInches-extraMarginInches, y:     extraMarginInches},
+			{x: lengthInches-extraMarginInches, y: 3.5-extraMarginInches},
+			{x:              extraMarginInches, y: 3.5-extraMarginInches},
 		]
 	});
 	components.push(makeTogRackPanelHoles(panelOpts));
